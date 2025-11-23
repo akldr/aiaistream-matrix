@@ -1,8 +1,8 @@
-# aiai.stream — Next.js scaffold
+# aiaistream-matrix / aiai.stream
 
-Quick start
+This repository contains a minimal Next.js scaffold and an initial "matrix effect" page.
 
-Install dependencies and run dev server:
+Quick start (local development):
 
 ```
 cd /app
@@ -10,4 +10,9 @@ npm install
 npm run dev
 ```
 
-The dev server listens on port `3000`. In `Dockerfile` the working dir is `/app`; you can build and run a container and map port 3000 to access the app.
+The dev server listens on port `3000`.
+
+Docker notes: the supplied `Dockerfile` uses `/app` as the working directory; mount your code and map port `3000` to access the app from your host.
+
+Project purpose: matrix effect page and Next.js demo.
+
