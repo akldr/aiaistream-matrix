@@ -1,14 +1,22 @@
+import dynamic from 'next/dynamic';
+import Head from 'next/head';
+
+const MatrixAI = dynamic(() => import('../components/MatrixAI'), { ssr: false });
+
 export default function Home() {
   return (
-    <main style={{fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Noto Sans'}}>
-      <div style={{maxWidth: 900, margin: '4rem auto', padding: '1rem'}}>
-        <h1 style={{fontSize: '2rem', marginBottom: '0.5rem'}}>Welcome to aiai.stream</h1>
-        <p style={{color: '#444'}}>This is a minimal Next.js starter scaffold. Run <code>npm run dev</code> to start the dev server.</p>
-        <div style={{marginTop: '1.25rem', padding: '1rem', border: '1px solid #eee', borderRadius: 8}}>
-          <strong>Ready for development</strong>
-          <p style={{marginTop: '0.5rem'}}>Edit <code>pages/index.js</code> and refresh.</p>
+    <>
+      <Head>
+        <title>aiai.stream — Matrix AI preview</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
+      <main style={{fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Noto Sans'}}>
+        <div style={{maxWidth: 1200, margin: '2rem auto', padding: '1rem'}}>
+          <h1 style={{fontSize: '1.5rem', marginBottom: '0.5rem'}}>Matrix AI — Preview</h1>
+          <p style={{color: '#666', marginBottom: '1rem'}}>Interactive canvas preview (controls on the right). Depth-map preview may require CORS or a proxy.</p>
+          <MatrixAI />
         </div>
-      </div>
-    </main>
-  )
+      </main>
+    </>
+  );
 }
