@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 const DEFAULT_GLYPHS = "舍利子色不异空即是受想行识亦复如是诸法相生灭垢淨增减故中无眼耳鼻舌身意声香味触法界乃至明尽老死苦集道智得以菩提萨埵依般若波罗蜜多心罣碍有恐怖远离颠倒梦想究竟涅槃三世诸佛得阿耨多罗三藐大知神咒明上等能除一切真实虚说曰揭谛波罗僧萨婆诃";
-const DEFAULT_DEPTH_URL = "/depth-default.svg";
+const DEFAULT_DEPTH_URL = "/depth-default.png";
 
 function clamp(v, a = 0, b = 1) { return Math.max(a, Math.min(b, v)); }
 function hash32(a) {
