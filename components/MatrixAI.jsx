@@ -62,7 +62,7 @@ const Panel = (props) => {
             <ChevronsLeft className="h-4 w-4" />
           </Button>
         ) : (
-          <Card style={{ width: 'min(380px, 92vw)', maxHeight:'100%', overflowY:'auto' }}>
+          <Card style={{ width: 'min(420px, 100vw)', maxHeight:'100%', overflowY:'auto' }}>
             <CardHeader>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
                 <CardTitle>
@@ -112,7 +112,7 @@ const Panel = (props) => {
                     <option value="/depth-map-04.png">Map 04</option>
                     <option value="/depth-map-05.png">Map 05</option>
                   </select>
-                  <Input placeholder="Paste Image URL..." value={uiState.depthUrl} onChange={(e) => updateConfig("depthUrl", e.target.value)} style={{ background:'rgba(24,24,27,0.6)' }} />
+                  <Input placeholder="Paste Image URL..." value={uiState.depthUrl} onChange={(e) => updateConfig("depthUrl", e.target.value)} style={{ background:'rgba(24,24,27,0.6)', width:'94%'}} />
                   <div style={{ display:'grid', gap:8 }}>
                     <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:0.6, fontWeight:700, color:'#90909b' }}>Preview {depthInfo ? `— ${depthInfo}` : ""}</div>
                     {depthPreview ? (
