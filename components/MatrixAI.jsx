@@ -1,240 +1,379 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { Play, Pause, Sparkles, RotateCcw, Download, ChevronsLeft, ChevronsRight } from "lucide-react";
 
+// 轻量 UI 组件（纯 JSX，无 TS 类型）
+const Button = (props) => {
+  const { children, variant = "primary", size = "default", onClick, disabled, style = {}, className = "", ...rest } = props || {};
+  const base = {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10,
+    fontSize: size === 'sm' ? 12 : size === 'icon' ? 12 : 13, fontWeight: 600,
+    padding: size === 'sm' ? '8px 12px' : size === 'icon' ? '8px' : '10px 14px',
+    cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1,
+    border: '1px solid rgba(255,255,255,0.10)', transition: 'transform 0.08s ease, background 0.2s ease, box-shadow 0.2s ease',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+  };
+  const palette = {
+    primary: { background: '#e5e7eb', color: '#0a0a0a' },
+    secondary: { background: 'rgba(28,28,32,0.9)', color: '#e5e7eb' },
+    ghost: { background: 'rgba(255,255,255,0.04)', color: '#d1d5db' },
+    outline: { background: 'transparent', color: '#e5e7eb' },
+  };
+  const composed = { ...base, ...(palette[variant] || palette.primary), ...style };
+  const [hover, setHover] = React.useState(false);
+  const [active, setActive] = React.useState(false);
+  const hoverStyle = hover ? { boxShadow: '0 4px 14px rgba(0,0,0,0.35)' } : {};
+  const activeStyle = active ? { transform: 'translateY(1px)' } : {};
+  return (
+    <button
+      type="button"
+      style={{ ...composed, ...hoverStyle, ...activeStyle }}
+      className={className}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => { setHover(false); setActive(false); }}
+      onMouseDown={() => setActive(true)}
+      onMouseUp={() => setActive(false)}
+      onClick={onClick}
+      disabled={disabled}
+      {...rest}
+    >{children}</button>
+  );
+};
+
+const Slider = (props) => {
+  const { value, min, max, step, onChange, className = "", style = {} } = props || {};
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return (<input type="range" min={min} max={max} step={step} value={safeValue} onChange={(e) => onChange && onChange(parseFloat(e.target.value))} className={className} style={{ width:'100%', height: 18, ...style }} />);
+};
+
+const Input = (props) => { const { className = "", style = {}, ...rest } = props || {}; return (<input className={className} style={{ height: 32, width: '100%', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(9,9,11,0.9)', color: '#e5e7eb', padding: '6px 10px', fontSize: 12, ...style }} {...rest} />); };
+const Card = (props) => { const { className = "", style = {}, children } = props || {}; return (<div className={className} style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(12,12,16,0.92)', color: '#e5e7eb', boxShadow: '0 10px 28px rgba(0,0,0,0.40)', ...style }}>{children}</div>); };
+const CardHeader = (props) => { const { className = "", style = {}, children } = props || {}; return (<div className={className} style={{ display:'flex', flexDirection:'column', gap:8, padding:18, borderBottom: '1px solid rgba(255,255,255,0.10)', position:'sticky', top:0, background: 'rgba(22,22,26,0.55)', backdropFilter:'blur(8px)', zIndex: 10, borderTopLeftRadius: 14, borderTopRightRadius: 14, ...style }}>{children}</div>); };
+const CardTitle = (props) => { const { className = "", style = {}, children } = props || {}; return (<h3 className={className} style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.3, display:'flex', alignItems:'center', gap:8, color:'#e6fff5', ...style }}>{children}</h3>); };
+const CardContent = (props) => { const { className = "", style = {}, children } = props || {}; return (<div className={className} style={{ padding:20, paddingTop:16, ...style }}>{children}</div>); };
+
+// 抽出独立 Panel 组件
+const Panel = (props) => {
+  const { running, setRunning, onReset, onDownload, uiState, updateConfig, depthPreview, depthInfo, collapsed, setCollapsed } = props;
+  return (
+    <div style={{ position:'absolute', top:20, right:20, bottom:20, zIndex:20, display:'flex', flexDirection:'column', alignItems:'flex-end', pointerEvents:'none' }}>
+      <div style={{ pointerEvents:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10, maxHeight:'100%' }}>
+        {collapsed ? (
+          <Button variant="secondary" size="icon" onClick={() => setCollapsed(false)}>
+            <ChevronsLeft className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Card style={{ width: 'min(380px, 92vw)', maxHeight:'100%', overflowY:'auto' }}>
+            <CardHeader>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+                <CardTitle>
+                  <Sparkles className="h-4 w-4" style={{ color:'#34d399' }} /> Matrix with Depth
+                </CardTitle>
+                <div style={{ display:'flex', gap:8 }}>
+                  <Button variant="ghost" size="icon" onClick={() => setCollapsed(true)}>
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              {/* API key input removed */}
+              <div style={{ display:'flex', gap:10, marginTop:10 }}>
+                <Button variant="secondary" size="sm" style={{ flex:1 }} onClick={() => setRunning((r) => !r)}>
+                  {running ? (<><Pause className="mr-2 h-3 w-3" /> Pause</>) : (<><Play className="mr-2 h-3 w-3" /> Play</>)}
+                </Button>
+                <Button variant="secondary" size="sm" style={{ flex:1 }} onClick={onReset}>
+                  <RotateCcw className="mr-2 h-3 w-3" /> Reset
+                </Button>
+                <Button variant="secondary" size="icon" onClick={onDownload}>
+                  <Download className="h-3 w-3" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div style={{ display:'grid', gap:14 }}>
+                <LabeledSlider label="Fall Speed" value={uiState.speed} onChange={(v) => updateConfig("speed", v)} min={0.5} max={8} step={0.1} />
+                <LabeledSlider label="Density" value={uiState.density} onChange={(v) => updateConfig("density", v)} min={0.3} max={1.8} step={0.05} />
+                <LabeledSlider label="Trail Length" value={uiState.trail} onChange={(v) => updateConfig("trail", v)} min={0} max={1.5} step={0.05} />
+                <LabeledSlider label="Trail Persist" value={uiState.persistence} onChange={(v) => updateConfig("persistence", v)} min={0} max={1} step={0.01} />
+                <LabeledSlider label="Glyph Cycle" value={uiState.glyphSpeed} onChange={(v) => updateConfig("glyphSpeed", v)} min={0.1} max={1.5} step={0.05} />
+                <LabeledSlider label="Font Size" value={uiState.fontSize} onChange={(v) => updateConfig("fontSize", v)} min={10} max={26} step={1} />
+                <LabeledSlider label="Glow" value={uiState.glow} onChange={(v) => updateConfig("glow", v)} min={0} max={0.5} step={0.01} />
+                <LabeledSlider label="Color Hue" value={uiState.colorHue} onChange={(v) => updateConfig("colorHue", v)} min={0} max={360} step={1} />
+                <LabeledSlider label="Depth Strength" value={uiState.depthInfluence} onChange={(v) => updateConfig("depthInfluence", v)} min={0} max={1.5} step={0.05} />
+                <div style={{ display:'grid', gap:10, marginTop:4 }}>
+                  <label style={{ fontSize:12, color:'#cbd5e1', fontWeight:600 }}>Depth Map</label>
+                  <select
+                    style={{ height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(24,24,27,0.6)', color:'#e5e7eb', fontSize:12, padding:'6px 10px' }}
+                    value={uiState.depthUrl}
+                    onChange={e => updateConfig("depthUrl", e.target.value)}
+                  >
+                    <option value="/depth-default.png">默认</option>
+                    <option value="/depth-map-01.png">Map 01</option>
+                    <option value="/depth-map-02.png">Map 02</option>
+                    <option value="/depth-map-03.png">Map 03</option>
+                    <option value="/depth-map-04.png">Map 04</option>
+                    <option value="/depth-map-05.png">Map 05</option>
+                  </select>
+                  <Input placeholder="Paste Image URL..." value={uiState.depthUrl} onChange={(e) => updateConfig("depthUrl", e.target.value)} style={{ background:'rgba(24,24,27,0.6)' }} />
+                  <div style={{ display:'grid', gap:8 }}>
+                    <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:0.6, fontWeight:700, color:'#90909b' }}>Preview {depthInfo ? `— ${depthInfo}` : ""}</div>
+                    {depthPreview ? (
+                      <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'140px', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <img src={depthPreview} alt="depth preview" style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block' }} />
+                      </div>
+                    ) : (
+                      <div style={{ fontSize:12, color:'#9ca3af', fontStyle:'italic', padding:12, border:'1px dashed rgba(255,255,255,0.14)', borderRadius:10 }}>No active depth map</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Core constants
 const DEFAULT_GLYPHS = "舍利子色不异空即是受想行识亦复如是诸法相生灭垢淨增减故中无眼耳鼻舌身意声香味触法界乃至明尽老死苦集道智得以菩提萨埵依般若波罗蜜多心罣碍有恐怖远离颠倒梦想究竟涅槃三世诸佛得阿耨多罗三藐大知神咒明上等能除一切真实虚说曰揭谛波罗僧萨婆诃";
 const DEFAULT_DEPTH_URL = "/depth-default.png";
+const MAX_SEGMENTS = 3;
 
 function clamp(v, a = 0, b = 1) { return Math.max(a, Math.min(b, v)); }
-function hash32(a) {
-  a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+const DEPTH_LUT = new Float32Array(256);
+for (let i = 0; i < 256; i++) { const x = i / 255; const shifted = (x - 0.5) * 1.6; let y = clamp(0.5 + shifted, 0, 1); if (y >= 0.5) { y = 0.5 + Math.pow(y - 0.5, 0.7); } else { y = 0.5 - Math.pow(0.5 - y, 0.7); } DEPTH_LUT[i] = clamp(y, 0, 1); }
+function hash32(a) { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+function fitCanvas(canvas) { const ratio = Math.min(window.devicePixelRatio || 1, 2); const parent = canvas.parentElement; if (!parent) return; const bounds = parent.getBoundingClientRect(); const W = Math.max(1, Math.floor(bounds.width)); const H = Math.max(1, Math.floor(bounds.height)); const targetW = Math.floor(W * ratio); const targetH = Math.floor(H * ratio); if (canvas.width !== targetW || canvas.height !== targetH) { canvas.style.width = `${W}px`; canvas.style.height = `${H}px`; canvas.width = targetW; canvas.height = targetH; const ctx = canvas.getContext("2d"); if (ctx) ctx.setTransform(ratio, 0, 0, ratio, 0, 0); } }
+
+function hueToRGB(h) {
+  const H = ((h % 360) + 360) % 360;
+  const C = 1;
+  const X = 1 - Math.abs(((H / 60) % 2) - 1);
+  let r=0,g=0,b=0;
+  if (H < 60) { r=1; g=X; b=0; }
+  else if (H < 120) { r=X; g=1; b=0; }
+  else if (H < 180) { r=0; g=1; b=X; }
+  else if (H < 240) { r=0; g=X; b=1; }
+  else if (H < 300) { r=X; g=0; b=1; }
+  else { r=1; g=0; b=X; }
+  return [Math.round(r*255), Math.round(g*255), Math.round(b*255)];
 }
 
-function fitCanvas(canvas) {
-  const ratio = Math.min(window.devicePixelRatio || 1, 2);
-  const parent = canvas.parentElement;
-  const bounds = parent.getBoundingClientRect();
-  const W = Math.max(1, Math.floor(bounds.width));
-  const H = Math.max(1, Math.floor(bounds.height));
-  canvas.style.width = `${W}px`;
-  canvas.style.height = `${H}px`;
-  canvas.width = Math.floor(W * ratio);
-  canvas.height = Math.floor(H * ratio);
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-}
-
-export default function MatrixAI() {
-  const canvasRef = useRef(null);
-
-  const [running, setRunning] = useState(true);
-  const [speed, setSpeed] = useState(2.6);
-  const [density, setDensity] = useState(1.25);
-  const [fontSize, setFontSize] = useState(16);
-  const [glow, setGlow] = useState(0.5);
-  const [trail, setTrail] = useState(0.8);
-  const [glyphSpeed, setGlyphSpeed] = useState(0.6);
-  const [depthUrl, setDepthUrl] = useState(DEFAULT_DEPTH_URL);
-  const [depthInfluence, setDepthInfluence] = useState(0.9);
-
-  const depthImageEl = useRef(null);
-  const depthDataRef = useRef(null);
-  const [depthPreview, setDepthPreview] = useState(null);
-  const [depthInfo, setDepthInfo] = useState(null);
-
-  const colCountRef = useRef(0);
-  const colYRef = useRef(null);
-
-  const lastTimeRef = useRef(performance.now());
-  const tickRef = useRef(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    const tryLoad = (url, tried = []) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.referrerPolicy = "no-referrer";
-      img.onload = () => {
-        if (cancelled) return;
-        depthImageEl.current = img;
-        setDepthPreview(url);
-        setDepthInfo(`${img.naturalWidth}×${img.naturalHeight}`);
-        rebuildDepthResample();
-      };
-      img.onerror = () => {
-        if (cancelled) return;
-        if (!tried.includes("weserv")) {
-          const p = `https://images.weserv.nl/?url=${encodeURIComponent(url)}`;
-          tryLoad(p, [...tried, "weserv"]);
-          return;
-        }
-        if (!tried.includes("isogit")) {
-          const p = `https://cors.isomorphic-git.org/${url}`;
-          tryLoad(p, [...tried, "isogit"]);
-          return;
-        }
-        depthImageEl.current = null; depthDataRef.current = null;
-        setDepthPreview(null); setDepthInfo(null);
-      };
-      img.src = url;
-    };
-    const clean = depthUrl && depthUrl.trim();
-    if (clean) tryLoad(clean);
-    else { setDepthPreview(null); setDepthInfo(null); }
-    return () => { cancelled = true; };
-  }, [depthUrl]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current; if (!canvas) return;
-    const handle = () => {
-      fitCanvas(canvas);
-      rebuildDepthResample();
-      const cols = Math.max(1, Math.floor(canvas.clientWidth / Math.max(8, fontSize)));
-      colCountRef.current = cols;
-      colYRef.current = new Float32Array(cols);
-      for (let i = 0; i < cols; i++) colYRef.current[i] = Math.random() * (canvas.clientHeight / fontSize);
-    };
-    handle();
-    const ro = new ResizeObserver(handle);
-    ro.observe(canvas.parentElement);
-    return () => ro.disconnect();
-  }, [fontSize]);
-
-  useEffect(() => {
-    let raf = null;
-    const loop = () => {
-      const now = performance.now();
-      const dt = Math.max(0, now - lastTimeRef.current) / 1000;
-      lastTimeRef.current = now;
-      tickRef.current += dt * glyphSpeed;
-      draw();
-      if (running) raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => { if (raf) cancelAnimationFrame(raf); };
-  }, [running, speed, density, fontSize, glow, trail, glyphSpeed, depthInfluence]);
-
-  function rebuildDepthResample() {
-    const canvas = canvasRef.current; const img = depthImageEl.current; if (!canvas || !img) { depthDataRef.current = null; return; }
-    const cw = canvas.clientWidth, ch = canvas.clientHeight; if (!cw || !ch) return;
-    const off = document.createElement("canvas"); off.width = cw; off.height = ch; const g = off.getContext("2d");
-    const scale = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
-    const dw = Math.max(1, Math.floor(img.naturalWidth * scale));
-    const dh = Math.max(1, Math.floor(img.naturalHeight * scale));
-    const ox = Math.floor((cw - dw) / 2), oy = Math.floor((ch - dh) / 2);
-    g.fillStyle = "#000"; g.fillRect(0,0,cw,ch);
-    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
-    g.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, ox, oy, dw, dh);
-    try { depthDataRef.current = g.getImageData(0, 0, cw, ch); } catch { depthDataRef.current = null; }
-  }
-
-  function sampleDepthNorm(x, y) {
-    const d = depthDataRef.current; if (!d) return 0.5;
-    const cw = d.width, ch = d.height;
-    const ix = clamp(Math.floor(x), 0, cw - 1);
-    const iy = clamp(Math.floor(y), 0, ch - 1);
-    const idx = (iy * cw + ix) * 4;
-    const r = d.data[idx], g = d.data[idx+1], b = d.data[idx+2];
-    const ycc = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
-    return ycc;
-  }
-
-  function glyphAt(col, row, t) {
-    const seed = (col * 73856093) ^ (row * 19349663) ^ Math.floor(t * 2);
-    const r = hash32(seed);
-    const idx = Math.floor(r * DEFAULT_GLYPHS.length) % DEFAULT_GLYPHS.length;
-    return DEFAULT_GLYPHS.charAt(idx);
-  }
-
-  function draw() {
-    const canvas = canvasRef.current; if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const W = canvas.clientWidth, H = canvas.clientHeight;
-    const bgAlpha = Math.max(0.02, Math.min(0.24, 0.02 + (1 - trail) * 0.18));
-    ctx.fillStyle = `rgba(0,0,0,${bgAlpha})`;
-    ctx.fillRect(0, 0, W, H);
-    const cols = colCountRef.current; const colY = colYRef.current; if (!cols || !colY) return;
-    ctx.textBaseline = "top";
-    const skipEvery = Math.max(1, Math.round(2.2 - Math.min(2, density)));
-    for (let i = 0; i < cols; i++) {
-      if (i % skipEvery !== 0) continue;
-      const baseX = i * fontSize;
-      const yChar = colY[i] * fontSize;
-      const d = sampleDepthNorm(baseX, yChar);
-      const near = d * 2 - 1;
-      const sizeMul = 1 + depthInfluence * near * 0.45;
-      const sizeLocal = clamp(fontSize * sizeMul, 8, fontSize * 2.2);
-      ctx.shadowColor = `rgba(0,255,140,${glow})`;
-      ctx.shadowBlur = 6 * glow;
-      const grad = ctx.createLinearGradient(baseX, yChar - sizeLocal * 1.6, baseX, yChar + sizeLocal);
-      grad.addColorStop(0, `rgba(0,255,160,${0.08 + 0.18 * (d)})`);
-      grad.addColorStop(1, `rgba(0,255,${Math.round(160 + 80 * d)},0.95)`);
-      ctx.fillStyle = grad;
-      const rowIndex = Math.floor(yChar / fontSize);
-      const char = glyphAt(i, rowIndex, tickRef.current);
-      const nextChar = glyphAt(i, rowIndex + 1, tickRef.current);
-      ctx.font = `${Math.max(8, sizeLocal)}px sans-serif`;
-      const frac = (yChar / fontSize) - rowIndex;
-      ctx.globalAlpha = 1;
-      ctx.fillText(char, baseX, yChar);
-      if (nextChar !== char) {
-        ctx.globalAlpha = 0.25 + 0.45 * frac;
-        ctx.fillText(nextChar, baseX, yChar + fontSize * 0.9);
-        ctx.globalAlpha = 1;
-      }
-      const fallMul = 1 + (1 - d) * 0.5;
-      const step = speed * fallMul * 0.12;
-      colY[i] += step;
-      if (yChar > H + fontSize * 4) colY[i] = 0;
-    }
-  }
-
-  useEffect(() => {
-    try {
-      console.assert(typeof DEFAULT_GLYPHS === 'string' && DEFAULT_GLYPHS.length > 0, 'glyph set non-empty');
-      console.assert(typeof fontSize === 'number' && fontSize > 0, 'fontSize > 0');
-      console.assert(typeof clamp(0.5, 0, 1) === 'number', 'clamp returns number');
-      console.assert(typeof sampleDepthNorm(0, 0) === 'number', 'depth sampler returns number');
-      console.assert(typeof DEFAULT_DEPTH_URL === 'string' && DEFAULT_DEPTH_URL.length > 0, 'depth url non-empty');
-    } catch (e) { console.warn('Self-tests error', e); }
-  }, []);
-
+function LabeledSlider({ label, value, onChange, min, max, step }) {
+  const display = Number.isFinite(value) ? (Math.abs(value) < 10 ? value.toFixed(2) : value.toFixed(0)) : String(value);
   return (
-    <div style={{position:'relative', height:'80vh', width:'100%', overflow:'hidden', borderRadius:12, background:'#000'}}>
-      <canvas ref={canvasRef} style={{position:'absolute', inset:0, display:'block'}} />
-      <div style={{position:'absolute', top:16, right:16, width:380, zIndex:20}}>
-        <div style={{background:'rgba(20,20,20,0.75)', padding:12, borderRadius:8, color:'#ddd', border:'1px solid rgba(255,255,255,0.04)'}}>
-          <div style={{display:'flex', gap:8, marginBottom:8}}>
-            <button onClick={() => setRunning(r => !r)} style={{padding:'6px 8px'}}> {running? 'Pause' : 'Play'} </button>
-            <button onClick={() => setDepthUrl(DEFAULT_DEPTH_URL)} style={{padding:'6px 8px'}}>Reset Depth</button>
-            <button onClick={() => { const a = document.createElement('a'); a.href = canvasRef.current.toDataURL('image/png'); a.download = 'matrix_ai.png'; a.click(); }} style={{padding:'6px 8px'}}>PNG</button>
-          </div>
-          <div style={{display:'grid', gap:8}}>
-            <LabeledSlider label="Speed" value={speed} onChange={setSpeed} min={0.2} max={6} step={0.1} />
-            <LabeledSlider label="Density" value={density} onChange={setDensity} min={0.2} max={1.8} step={0.01} />
-            <LabeledSlider label="Trail" value={trail} onChange={setTrail} min={0} max={1} step={0.01} />
-            <LabeledSlider label="Glyph change speed" value={glyphSpeed} onChange={setGlyphSpeed} min={0} max={2} step={0.01} />
-            <LabeledSlider label="Font size" value={fontSize} onChange={setFontSize} min={10} max={30} step={1} />
-            <LabeledSlider label="Glow" value={glow} onChange={setGlow} min={0} max={1} step={0.01} />
-            <LabeledSlider label="Depth influence" value={depthInfluence} onChange={setDepthInfluence} min={0} max={1.5} step={0.01} />
-            <div>
-              <input type="text" placeholder="Depth Map URL" value={depthUrl} onChange={e=>setDepthUrl(e.target.value)} style={{width:'100%', padding:8, background:'#111', color:'#eee', border:'1px solid rgba(255,255,255,0.06)'}} />
-              <div style={{fontSize:12, color:'#999', marginTop:6}}>Depth preview {depthInfo ? `(${depthInfo})` : ''}</div>
-              {depthPreview ? <img src={depthPreview} alt="depth preview" style={{maxWidth:180, height:'auto', marginTop:6, borderRadius:6, border:'1px solid rgba(255,255,255,0.04)'}} /> : <div style={{fontSize:12, color:'#666', marginTop:6}}>No preview</div>}
-            </div>
-          </div>
-        </div>
+    <div className="w-full">
+      <div className="mb-2 text-sm text-zinc-300 flex items-baseline justify-between">
+        <span>{label}</span>
+        <span className="font-mono text-zinc-100 text-xs bg-zinc-800 px-1.5 py-0.5 rounded">{display}</span>
       </div>
+      <Slider value={value} min={min} max={max} step={step} onChange={onChange} className="w-full" />
     </div>
   );
 }
 
-function LabeledSlider({ label, value, onChange, min, max, step }) {
+function extractGlyphTextFromGemini(data) {
+  if (!data) return null;
+  const candidates = data.candidates;
+  if (Array.isArray(candidates) && candidates.length > 0) {
+    const parts = candidates[0] && candidates[0].content && candidates[0].content.parts;
+    if (Array.isArray(parts) && parts.length > 0) {
+      const joined = parts.map((p) => (typeof (p && p.text) === "string" ? p.text : "")).join(" ").trim();
+      if (joined) return joined;
+    }
+  }
+  const direct = data.output_text || data.text;
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+  return null;
+}
+
+const DEFAULT_CONFIG = { speed: 6, density: 1, fontSize: 16, glow: 0.1, trail: 1, persistence: 0.65, glyphSpeed: 0.5, depthInfluence: 0.25, glyphs: DEFAULT_GLYPHS, depthUrl: DEFAULT_DEPTH_URL, colorHue: 140 };
+
+export default function MatrixAI() {
+  const canvasRef = useRef(null);
+  // API key logic removed
+
+  const [running, setRunning] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
+  const [depthPreview, setDepthPreview] = useState(null);
+  const [depthInfo, setDepthInfo] = useState(null);
+  const configRef = useRef({ ...DEFAULT_CONFIG });
+  const [uiState, setUiState] = useState({ ...DEFAULT_CONFIG });
+  const updateConfig = (key, value) => { const next = { ...configRef.current, [key]: value }; configRef.current = next; setUiState(next); };
+
+  // 移除 AI 生成区域（按需求暂不显示）
+
+  const depthImageEl = useRef(null);
+  const depthLumaRef = useRef(null);
+  const depthDimsRef = useRef({ w: 0, h: 0 });
+
+  const colCountRef = useRef(0);
+  const segHeadsRef = useRef(null);
+  const segSpeedRef = useRef(null);
+  const segCountRef = useRef(null);
+  const colSeedRef = useRef(null);
+
+  const lastTimeRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
+  const tickRef = useRef(0);
+  const fpsRef = useRef(0);
+  const fpsCountRef = useRef(0);
+  const fpsStartRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
+  const [fps, setFps] = useState(0);
+
+  const rebuildDepthResample = useCallback(() => {
+    const canvas = canvasRef.current; const img = depthImageEl.current; if (!canvas || !img) { depthLumaRef.current = null; return; }
+    const cw = canvas.clientWidth; const ch = canvas.clientHeight; if (!cw || !ch) return;
+    const off = document.createElement("canvas"); off.width = cw; off.height = ch; const g = off.getContext("2d", { willReadFrequently: true }); if (!g) return;
+    const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
+    const dw = Math.floor(img.naturalWidth * scale); const dh = Math.floor(img.naturalHeight * scale);
+    const ox = Math.floor((cw - dw) / 2); const oy = Math.floor((ch - dh) / 2);
+    g.fillStyle = "#000"; g.fillRect(0, 0, cw, ch); g.drawImage(img, ox, oy, dw, dh);
+    try { const imageData = g.getImageData(0, 0, cw, ch); const data = imageData.data; const luma = new Uint8Array(cw * ch); for (let i = 0; i < cw * ch; i++) { const r = data[i * 4]; const gVal = data[i * 4 + 1]; const b = data[i * 4 + 2]; luma[i] = (0.299 * r + 0.587 * gVal + 0.114 * b) | 0; } depthLumaRef.current = luma; depthDimsRef.current = { w: cw, h: ch }; } catch (e) { console.warn("depth resample failed", e); depthLumaRef.current = null; }
+  }, []);
+
+  const getDepthValue = (x, y) => { const luma = depthLumaRef.current; if (!luma) return 0.5; const dims = depthDimsRef.current || { w: 0, h: 0 }; const w = dims.w || 0; const h = dims.h || 0; if (!w || !h) return 0.5; const ix = x | 0; const iy = y | 0; if (ix < 0 || ix >= w || iy < 0 || iy >= h) return 0.5; const idx = iy * w + ix; const v = luma[idx]; return DEPTH_LUT[v]; };
+
+  const glyphAt = (col, row, t, glyphSet, colSeed) => { if (!glyphSet || !glyphSet.length) return " "; const baseT = t * 11.3 + col * 0.73 + row * 0.37; const tInt = baseT | 0; const seed = (col * 73856093) ^ ((row | 0) * 19349663) ^ ((tInt * 2654435761) | 0) ^ (colSeed | 0); const r = hash32(seed); const idx = (r * glyphSet.length) | 0; return glyphSet[idx % glyphSet.length]; };
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current; if (!canvas) return; const ctx = canvas.getContext("2d"); if (!ctx) return;
+    const W = canvas.clientWidth; const H = canvas.clientHeight;
+    const cfg = configRef.current; const speed = cfg.speed; const density = cfg.density; const fontSize = cfg.fontSize; const glow = cfg.glow; const trail = cfg.trail; const persistence = cfg.persistence; const depthInfluence = cfg.depthInfluence; const glyphs = cfg.glyphs;
+
+    const colsNeeded = Math.max(1, Math.floor(W / Math.max(8, fontSize)));
+    if (colCountRef.current !== colsNeeded || !segHeadsRef.current || !segSpeedRef.current || !segCountRef.current || !colSeedRef.current) {
+      colCountRef.current = colsNeeded; const newSegHeads = []; const newSegSpeeds = []; for (let s = 0; s < MAX_SEGMENTS; s++) { newSegHeads[s] = new Float32Array(colsNeeded); newSegSpeeds[s] = new Float32Array(colsNeeded); }
+      const segCount = new Uint8Array(colsNeeded); const seeds = new Uint32Array(colsNeeded); const charsPerScreenInit = H / fontSize;
+      let colDepthScores = null; let depthCutoff = 0;
+      if (depthLumaRef.current) { colDepthScores = new Float32Array(colsNeeded); const midY = H * 0.5; for (let i = 0; i < colsNeeded; i++) { const x = i * fontSize + fontSize * 0.5; colDepthScores[i] = getDepthValue(x, midY); } const sorted = Array.from(colDepthScores).sort((a, b) => b - a); const idxCut = Math.max(0, Math.min(sorted.length - 1, Math.floor(colsNeeded * 0.3))); depthCutoff = sorted[idxCut] ?? 0; }
+      for (let i = 0; i < colsNeeded; i++) { let count = 2; if (colDepthScores && depthCutoff > 0 && colDepthScores[i] >= depthCutoff) { count = 3; } segCount[i] = count; seeds[i] = (Math.random() * 0xffffffff) >>> 0; for (let s = 0; s < MAX_SEGMENTS; s++) { if (s < count) { const basePhase = count > 1 ? s / (count - 1) : 0; const phase = basePhase * 1.3 + Math.random() * 0.25; newSegHeads[s][i] = -phase * charsPerScreenInit; newSegSpeeds[s][i] = 0.7 + Math.random() * 0.6; } else { newSegHeads[s][i] = -9999; newSegSpeeds[s][i] = 0; } } }
+      segHeadsRef.current = newSegHeads; segSpeedRef.current = newSegSpeeds; segCountRef.current = segCount; colSeedRef.current = seeds;
+    }
+
+    const cols = colCountRef.current; const segHeads = segHeadsRef.current; const segSpeeds = segSpeedRef.current; const segCount = segCountRef.current; const colSeed = colSeedRef.current;
+    const trailNorm = clamp(trail, 0, 1); const persistNorm = clamp(persistence, 0, 1);
+    const bgAlphaBase = 0.32 - 0.26 * persistNorm; // higher persistence => smaller clear alpha
+    const bgAlpha = clamp(bgAlphaBase, 0.04, 0.34);
+    ctx.fillStyle = `rgba(0,0,0,${bgAlpha})`; ctx.fillRect(0, 0, W, H);
+    ctx.textBaseline = "top";
+    const skipEvery = Math.max(1, Math.round(2.2 - Math.min(2, density))); const glowClamped = clamp(glow, 0, 0.5); const charsPerScreen = H / fontSize;
+    const minFactor = 0.25; const maxFactor = 1.6; const factor = minFactor + (maxFactor - minFactor) * trailNorm; let baseTailLen = Math.round(charsPerScreen * (factor + persistNorm * 0.45)); if (!Number.isFinite(baseTailLen) || baseTailLen < 2) baseTailLen = 2;
+    const shadowColorHead = `rgba(180,255,220,${glowClamped})`; const shadowColorTail = `rgba(0,255,140,${glowClamped * 0.6})`; const shadowBlurHead = 7 * glowClamped; const shadowBlurTail = 4 * glowClamped; const hasGlow = glowClamped > 0.01;
+
+    const renderSegment = (colIndex, segIndex, headRow, segCountForCol) => {
+      const baseX = colIndex * fontSize; const k = Math.max(1, segCountForCol); const effectiveTail = Math.max(2, Math.round(baseTailLen / Math.sqrt(k)));
+      const drawTailFactor = segIndex === 0 ? 0.5 : 0.35; const drawTailLen = Math.max(2, Math.round(effectiveTail * drawTailFactor));
+      const headY = headRow * fontSize; const dHead = getDepthValue(baseX, headY); const nearHead = dHead * 2 - 1; const baseSize = clamp(fontSize * (1 + depthInfluence * nearHead * 0.25), 8, fontSize * 1.8);
+      const [baseR, baseG, baseB] = hueToRGB(configRef.current.colorHue || 140);
+      for (let j = 0; j < drawTailLen; j++) {
+        const rowPos = headRow - j;
+        const yChar = rowPos * fontSize;
+        if (yChar < -fontSize * 2 || yChar > H + fontSize) continue;
+        const rowIndex = rowPos | 0;
+        const isHeadChar = j === 0;
+        const tTail = effectiveTail > 1 ? j / (effectiveTail - 1) : 0;
+        const dLocal = getDepthValue(baseX, yChar);
+        const dBoostBase = clamp((dLocal - 0.35) * 2, 0, 1);
+        const depthBoost = dBoostBase * dBoostBase;
+        const localScale = 0.8 + depthBoost * depthInfluence * 1.1;
+        const sizeLocal = (Math.max(8, baseSize * localScale) + 0.5) | 0;
+        ctx.font = `${sizeLocal}px sans-serif`;
+        const isPrimarySegment = segIndex === 0;
+        if (isHeadChar) {
+          const alphaHead = clamp(0.4 + 0.6 * depthBoost, 0.6, 1);
+          if (hasGlow && isPrimarySegment) { ctx.shadowColor = shadowColorHead; ctx.shadowBlur = shadowBlurHead; }
+          else if (hasGlow) { ctx.shadowColor = shadowColorTail; ctx.shadowBlur = shadowBlurTail * 0.8; }
+          else { ctx.shadowBlur = 0; }
+          const headAlpha = isPrimarySegment ? alphaHead : alphaHead * 0.6;
+          // Keep leading (head) glyph pure white, unaffected by hue
+          ctx.fillStyle = `rgba(255,255,255,${headAlpha})`;
+        } else {
+          const fadeK = (1.1 + (1 - trailNorm) * 1.6) * (0.55 + 0.75 * (1 - persistNorm));
+          const brightness = Math.exp(-fadeK * tTail);
+          const alphaTail = clamp(0.04 + 0.2 * trailNorm + 0.8 * brightness * (0.4 + 0.6 * depthBoost), 0.06, isPrimarySegment ? 0.97 : 0.6);
+          if (hasGlow && isPrimarySegment) { ctx.shadowColor = shadowColorTail; ctx.shadowBlur = shadowBlurTail; }
+          else if (hasGlow) { ctx.shadowColor = shadowColorTail; ctx.shadowBlur = shadowBlurTail * 0.6; }
+          else { ctx.shadowBlur = 0; }
+          const tailScale = 0.35 + 0.65 * brightness;
+          const tailR = Math.round(baseR * tailScale);
+          const tailG = Math.round(baseG * tailScale);
+          const tailB = Math.round(baseB * tailScale * (0.85 + 0.15 * depthBoost));
+            ctx.fillStyle = `rgba(${tailR},${tailG},${tailB},${alphaTail})`;
+        }
+        const char = glyphAt(colIndex, rowIndex, tickRef.current, glyphs, colSeed[colIndex] || 0);
+        ctx.fillText(char, baseX | 0, yChar | 0);
+      }
+      const fallDepth = dHead; const fallNorm = clamp(fallDepth, 0, 1); const fallMul = 0.6 + 1.2 * (1 - fallNorm); const segSpeedMul = segSpeeds[segIndex][colIndex] || 1; const step = speed * fallMul * segSpeedMul * 0.12; let newHeadRow = headRow + step; if (headY > H + fontSize * 4) { const effTail = Math.max(2, Math.round(baseTailLen / Math.sqrt(Math.max(1, segCountForCol)))); newHeadRow = -effTail - Math.random() * charsPerScreen * 0.5; segSpeeds[segIndex][colIndex] = 0.7 + Math.random() * 0.6; if (segIndex === 0) { colSeed[colIndex] = (Math.random() * 0xffffffff) >>> 0; } }
+      return newHeadRow;
+    };
+
+    for (let i = 0; i < cols; i++) {
+      if (i % skipEvery !== 0) continue; const countForCol = segCount[i] || 0; if (!countForCol) continue;
+      for (let s = 0; s < countForCol && s < MAX_SEGMENTS; s++) { const headRow = segHeads[s][i]; const newHeadRow = renderSegment(i, s, headRow, countForCol); segHeads[s][i] = newHeadRow; }
+    }
+  }, []);
+
+  // 生成逻辑已移除
+
+  useEffect(() => {
+    let cancelled = false; const url = uiState.depthUrl; if (!url) return;
+    if (url === depthPreview) return; // already loaded
+    const tryLoad = (src, tried = []) => {
+      const img = new Image(); img.crossOrigin = "anonymous"; img.referrerPolicy = "no-referrer";
+      img.onload = () => { if (cancelled) return; depthImageEl.current = img; setDepthPreview(src); setDepthInfo(`${img.naturalWidth}×${img.naturalHeight}`); rebuildDepthResample(); };
+      img.onerror = () => { if (cancelled) return; if (!tried.includes("weserv") && !src.startsWith("data:")) { const proxied = `https://images.weserv.nl/?url=${encodeURIComponent(src)}`; tryLoad(proxied, [...tried, "weserv"]); return; } depthImageEl.current = null; depthLumaRef.current = null; setDepthPreview(null); setDepthInfo("Load failed"); };
+      img.src = src;
+    };
+    tryLoad(url);
+    return () => { cancelled = true; };
+  }, [uiState.depthUrl, rebuildDepthResample, depthPreview]);
+
+  useEffect(() => {
+    const onResize = () => { const c = canvasRef.current; if (!c) return; fitCanvas(c); rebuildDepthResample(); };
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [rebuildDepthResample]);
+
+  useEffect(() => {
+    let rafId = 0;
+    const loop = () => {
+      if (running) {
+        draw();
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        fpsCountRef.current += 1;
+        if (now - fpsStartRef.current >= 500) {
+          const f = (fpsCountRef.current * 1000) / (now - fpsStartRef.current);
+          fpsRef.current = f;
+          setFps(Math.round(f));
+          fpsCountRef.current = 0;
+          fpsStartRef.current = now;
+        }
+      }
+      tickRef.current += 1;
+      rafId = requestAnimationFrame(loop);
+    };
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, [running, draw]);
+
   return (
-    <div style={{width:'100%'}}>
-      <div style={{display:'flex', justifyContent:'space-between', marginBottom:6}}>
-        <span style={{fontSize:13, color:'#ddd'}}>{label}</span>
-        <span style={{fontFamily:'monospace', color:'#ddd'}}>{Number.isFinite(value) ? (Math.abs(value) < 10 ? value.toFixed(2) : value.toFixed(0)) : String(value)}</span>
+    <div style={{ position:'relative', width:'100%', height:'100vh', background:'#0b0b0f' }}>
+      <canvas ref={canvasRef} style={{ display:'block', width:'100%', height:'100%' }} />
+      <div style={{ position:'absolute', top:10, left:12, color:'#a7f3d0', fontSize:12, background:'rgba(6,6,8,0.5)', border:'1px solid rgba(255,255,255,0.10)', padding:'6px 8px', borderRadius:8 }}>
+        FPS: {fps}
       </div>
-      <input type="range" value={value} min={min} max={max} step={step} onChange={e=>onChange(Number(e.target.value))} style={{width:'100%'}} />
+      <Panel
+        running={running}
+        setRunning={setRunning}
+        onReset={() => { configRef.current = { ...DEFAULT_CONFIG }; setUiState({ ...DEFAULT_CONFIG }); }}
+        onDownload={() => { if (!canvasRef.current) return; const a = document.createElement('a'); a.href = canvasRef.current.toDataURL('image/png'); a.download = 'matrix_ai.png'; a.click(); }}
+        uiState={uiState}
+        updateConfig={updateConfig}
+        depthPreview={depthPreview}
+        depthInfo={depthInfo}
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+      />
     </div>
   );
 }
