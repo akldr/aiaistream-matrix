@@ -51,6 +51,11 @@ const CardHeader = (props) => { const { className = "", style = {}, children } =
 const CardTitle = (props) => { const { className = "", style = {}, children } = props || {}; return (<h3 className={className} style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.3, display:'flex', alignItems:'center', gap:8, color:'#e6fff5', ...style }}>{children}</h3>); };
 const CardContent = (props) => { const { className = "", style = {}, children } = props || {}; return (<div className={className} style={{ padding:20, paddingTop:16, ...style }}>{children}</div>); };
 
+function isVideoUrl(url) {
+  if (!url || typeof url !== "string") return false;
+  return /\.mp4(\?.*)?$/i.test(url.trim());
+}
+
 // 抽出独立 Panel 组件
 const Panel = (props) => {
   const { running, setRunning, onReset, onDownload, uiState, updateConfig, depthPreview, depthInfo, collapsed, setCollapsed } = props;
@@ -105,7 +110,8 @@ const Panel = (props) => {
                     value={uiState.depthUrl}
                     onChange={e => updateConfig("depthUrl", e.target.value)}
                   >
-                    <option value="/depth-default.png">默认</option>
+                    <option value="/depth-map-video.mp4">默认（视频）</option>
+                    <option value="/depth-default.png">默认（图片）</option>
                     <option value="/depth-map-01.png">Map 01</option>
                     <option value="/depth-map-02.png">Map 02</option>
                     <option value="/depth-map-03.png">Map 03</option>
@@ -117,7 +123,18 @@ const Panel = (props) => {
                     <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:0.6, fontWeight:700, color:'#90909b' }}>Preview {depthInfo ? `— ${depthInfo}` : ""}</div>
                     {depthPreview ? (
                       <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'140px', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <img src={depthPreview} alt="depth preview" style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block' }} />
+                        {isVideoUrl(depthPreview) ? (
+                          <video
+                            src={depthPreview}
+                            muted
+                            loop
+                            autoPlay
+                            playsInline
+                            style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block' }}
+                          />
+                        ) : (
+                          <img src={depthPreview} alt="depth preview" style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block' }} />
+                        )}
                       </div>
                     ) : (
                       <div style={{ fontSize:12, color:'#9ca3af', fontStyle:'italic', padding:12, border:'1px dashed rgba(255,255,255,0.14)', borderRadius:10 }}>No active depth map</div>
@@ -135,7 +152,7 @@ const Panel = (props) => {
 
 // Core constants
 const DEFAULT_GLYPHS = "舍利子色不异空即是受想行识亦复如是诸法相生灭垢淨增减故中无眼耳鼻舌身意声香味触法界乃至明尽老死苦集道智得以菩提萨埵依般若波罗蜜多心罣碍有恐怖远离颠倒梦想究竟涅槃三世诸佛得阿耨多罗三藐大知神咒明上等能除一切真实虚说曰揭谛波罗僧萨婆诃";
-const DEFAULT_DEPTH_URL = "/depth-default.png";
+const DEFAULT_DEPTH_URL = "/depth-map-video.mp4";
 const MAX_SEGMENTS = 3;
 
 function clamp(v, a = 0, b = 1) { return Math.max(a, Math.min(b, v)); }
@@ -205,6 +222,8 @@ export default function MatrixAI() {
   const depthImageEl = useRef(null);
   const depthLumaRef = useRef(null);
   const depthDimsRef = useRef({ w: 0, h: 0 });
+  const depthVideoEl = useRef(null);
+  const depthOffscreenRef = useRef(null);
 
   const colCountRef = useRef(0);
   const segHeadsRef = useRef(null);
@@ -217,18 +236,38 @@ export default function MatrixAI() {
   const fpsRef = useRef(0);
   const fpsCountRef = useRef(0);
   const fpsStartRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
+  const lastVideoSampleRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
   const [fps, setFps] = useState(0);
 
-  const rebuildDepthResample = useCallback(() => {
+  const ensureOffscreen = useCallback((w, h) => {
+    let off = depthOffscreenRef.current;
+    if (!off) { off = document.createElement("canvas"); depthOffscreenRef.current = off; }
+    if (off.width !== w || off.height !== h) { off.width = w; off.height = h; }
+    return off;
+  }, []);
+
+  const resampleFromImage = useCallback(() => {
     const canvas = canvasRef.current; const img = depthImageEl.current; if (!canvas || !img) { depthLumaRef.current = null; return; }
     const cw = canvas.clientWidth; const ch = canvas.clientHeight; if (!cw || !ch) return;
-    const off = document.createElement("canvas"); off.width = cw; off.height = ch; const g = off.getContext("2d", { willReadFrequently: true }); if (!g) return;
+    const off = ensureOffscreen(cw, ch); const g = off.getContext("2d", { willReadFrequently: true }); if (!g) return;
     const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
     const dw = Math.floor(img.naturalWidth * scale); const dh = Math.floor(img.naturalHeight * scale);
     const ox = Math.floor((cw - dw) / 2); const oy = Math.floor((ch - dh) / 2);
     g.fillStyle = "#000"; g.fillRect(0, 0, cw, ch); g.drawImage(img, ox, oy, dw, dh);
     try { const imageData = g.getImageData(0, 0, cw, ch); const data = imageData.data; const luma = new Uint8Array(cw * ch); for (let i = 0; i < cw * ch; i++) { const r = data[i * 4]; const gVal = data[i * 4 + 1]; const b = data[i * 4 + 2]; luma[i] = (0.299 * r + 0.587 * gVal + 0.114 * b) | 0; } depthLumaRef.current = luma; depthDimsRef.current = { w: cw, h: ch }; } catch (e) { console.warn("depth resample failed", e); depthLumaRef.current = null; }
-  }, []);
+  }, [ensureOffscreen]);
+
+  const resampleFromVideo = useCallback(() => {
+    const canvas = canvasRef.current; const video = depthVideoEl.current; if (!canvas || !video) return;
+    if (video.readyState < 2) return; // not enough data
+    const cw = canvas.clientWidth; const ch = canvas.clientHeight; if (!cw || !ch) return;
+    const off = ensureOffscreen(cw, ch); const g = off.getContext("2d", { willReadFrequently: true }); if (!g) return;
+    const scale = Math.max(cw / video.videoWidth, ch / video.videoHeight);
+    const dw = Math.floor(video.videoWidth * scale); const dh = Math.floor(video.videoHeight * scale);
+    const ox = Math.floor((cw - dw) / 2); const oy = Math.floor((ch - dh) / 2);
+    g.fillStyle = "#000"; g.fillRect(0, 0, cw, ch); g.drawImage(video, ox, oy, dw, dh);
+    try { const imageData = g.getImageData(0, 0, cw, ch); const data = imageData.data; const luma = new Uint8Array(cw * ch); for (let i = 0; i < cw * ch; i++) { const r = data[i * 4]; const gVal = data[i * 4 + 1]; const b = data[i * 4 + 2]; luma[i] = (0.299 * r + 0.587 * gVal + 0.114 * b) | 0; } depthLumaRef.current = luma; depthDimsRef.current = { w: cw, h: ch }; } catch (e) { console.warn("depth video resample failed", e); depthLumaRef.current = null; }
+  }, [ensureOffscreen]);
 
   const getDepthValue = (x, y) => { const luma = depthLumaRef.current; if (!luma) return 0.5; const dims = depthDimsRef.current || { w: 0, h: 0 }; const w = dims.w || 0; const h = dims.h || 0; if (!w || !h) return 0.5; const ix = x | 0; const iy = y | 0; if (ix < 0 || ix >= w || iy < 0 || iy >= h) return 0.5; const idx = iy * w + ix; const v = luma[idx]; return DEPTH_LUT[v]; };
 
@@ -316,28 +355,71 @@ export default function MatrixAI() {
 
   useEffect(() => {
     let cancelled = false; const url = uiState.depthUrl; if (!url) return;
-    if (url === depthPreview) return; // already loaded
+    if (isVideoUrl(url)) {
+      depthImageEl.current = null;
+      const vid = document.createElement("video");
+      vid.crossOrigin = "anonymous";
+      vid.referrerPolicy = "no-referrer";
+      vid.muted = true;
+      vid.loop = true;
+      vid.playsInline = true;
+      vid.autoplay = true;
+      const handleReady = () => {
+        if (cancelled) return;
+        depthVideoEl.current = vid;
+        setDepthPreview(url);
+        setDepthInfo(`${vid.videoWidth}×${vid.videoHeight} (video)`);
+        resampleFromVideo();
+      };
+      const handleError = () => {
+        if (cancelled) return;
+        depthVideoEl.current = null;
+        depthLumaRef.current = null;
+        setDepthPreview(null);
+        setDepthInfo("Video load failed");
+      };
+      vid.addEventListener("loadeddata", handleReady);
+      vid.addEventListener("error", handleError);
+      vid.src = url;
+      vid.play().catch(() => {});
+      return () => {
+        cancelled = true;
+        vid.pause();
+        vid.removeEventListener("loadeddata", handleReady);
+        vid.removeEventListener("error", handleError);
+        vid.removeAttribute("src");
+        vid.load();
+      };
+    }
+    depthVideoEl.current = null;
     const tryLoad = (src, tried = []) => {
       const img = new Image(); img.crossOrigin = "anonymous"; img.referrerPolicy = "no-referrer";
-      img.onload = () => { if (cancelled) return; depthImageEl.current = img; setDepthPreview(src); setDepthInfo(`${img.naturalWidth}×${img.naturalHeight}`); rebuildDepthResample(); };
+      img.onload = () => { if (cancelled) return; depthImageEl.current = img; setDepthPreview(src); setDepthInfo(`${img.naturalWidth}×${img.naturalHeight}`); resampleFromImage(); };
       img.onerror = () => { if (cancelled) return; if (!tried.includes("weserv") && !src.startsWith("data:")) { const proxied = `https://images.weserv.nl/?url=${encodeURIComponent(src)}`; tryLoad(proxied, [...tried, "weserv"]); return; } depthImageEl.current = null; depthLumaRef.current = null; setDepthPreview(null); setDepthInfo("Load failed"); };
       img.src = src;
     };
     tryLoad(url);
     return () => { cancelled = true; };
-  }, [uiState.depthUrl, rebuildDepthResample, depthPreview]);
+  }, [uiState.depthUrl, resampleFromImage, resampleFromVideo]);
 
   useEffect(() => {
-    const onResize = () => { const c = canvasRef.current; if (!c) return; fitCanvas(c); rebuildDepthResample(); };
+    const onResize = () => { const c = canvasRef.current; if (!c) return; fitCanvas(c); if (depthVideoEl.current) { resampleFromVideo(); } else { resampleFromImage(); } };
     onResize();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [rebuildDepthResample]);
+  }, [resampleFromImage, resampleFromVideo]);
 
   useEffect(() => {
     let rafId = 0;
     const loop = () => {
       if (running) {
+        if (depthVideoEl.current) {
+          const nowSample = typeof performance !== 'undefined' ? performance.now() : Date.now();
+          if (nowSample - lastVideoSampleRef.current >= 33) { // ~30fps sampling
+            resampleFromVideo();
+            lastVideoSampleRef.current = nowSample;
+          }
+        }
         draw();
         const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
         fpsCountRef.current += 1;
