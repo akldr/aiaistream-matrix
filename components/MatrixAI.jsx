@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Play, Pause, Sparkles, RotateCcw, Download, ChevronsLeft, ChevronsRight } from "lucide-react";
+import TTSCharacterPanel from "./TTSCharacterPanel";
 
 // 轻量 UI 组件（纯 JSX，无 TS 类型）
 const Button = (props) => {
@@ -58,7 +59,7 @@ function isVideoUrl(url) {
 
 // 抽出独立 Panel 组件
 const Panel = (props) => {
-  const { running, setRunning, onReset, onDownload, uiState, updateConfig, depthPreview, depthInfo, collapsed, setCollapsed } = props;
+  const { running, setRunning, onReset, onDownload, uiState, updateConfig, depthPreview, depthInfo, collapsed, setCollapsed, showTTSPanel, setShowTTSPanel, isTtsDepthActive } = props;
   return (
     <div style={{ position:'absolute', top:20, right:20, bottom:20, zIndex:20, display:'flex', flexDirection:'column', alignItems:'flex-end', pointerEvents:'none' }}>
       <div style={{ pointerEvents:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10, maxHeight:'100%' }}>
@@ -89,6 +90,14 @@ const Panel = (props) => {
                 </Button>
                 <Button variant="secondary" size="icon" onClick={onDownload}>
                   <Download className="h-3 w-3" />
+                </Button>
+                <Button 
+                  variant={showTTSPanel ? "primary" : "secondary"} 
+                  size="sm" 
+                  style={{ flex:1 }} 
+                  onClick={() => setShowTTSPanel(!showTTSPanel)}
+                >
+                  {showTTSPanel ? 'Hide TTS' : 'TTS Panel'}
                 </Button>
               </div>
             </CardHeader>
@@ -121,7 +130,9 @@ const Panel = (props) => {
                   <Input placeholder="Paste Image URL..." value={uiState.depthUrl} onChange={(e) => updateConfig("depthUrl", e.target.value)} style={{ background:'rgba(24,24,27,0.6)', width:'94%'}} />
                   <div style={{ display:'grid', gap:8 }}>
                     <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:0.6, fontWeight:700, color:'#90909b' }}>Preview {depthInfo ? `— ${depthInfo}` : ""}</div>
-                    {depthPreview ? (
+                    {isTtsDepthActive ? (
+                      <div style={{ fontSize:12, color:'#9ca3af', fontStyle:'italic', padding:12, border:'1px dashed rgba(255,255,255,0.14)', borderRadius:10 }}>Live TTS depth feed</div>
+                    ) : depthPreview ? (
                       <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'140px', display:'flex', alignItems:'center', justifyContent:'center' }}>
                         {isVideoUrl(depthPreview) ? (
                           <video
@@ -213,9 +224,32 @@ export default function MatrixAI() {
   const [collapsed, setCollapsed] = useState(false);
   const [depthPreview, setDepthPreview] = useState(null);
   const [depthInfo, setDepthInfo] = useState(null);
+  const [showTTSPanel, setShowTTSPanel] = useState(false);
+  const previousDepthUrlRef = useRef(DEFAULT_DEPTH_URL);
+  const ttsDepthCanvasRef = useRef(null);
+  const isTtsDepthActiveRef = useRef(false);
+  const [isTtsDepthActive, setIsTtsDepthActive] = useState(false);
   const configRef = useRef({ ...DEFAULT_CONFIG });
   const [uiState, setUiState] = useState({ ...DEFAULT_CONFIG });
   const updateConfig = (key, value) => { const next = { ...configRef.current, [key]: value }; configRef.current = next; setUiState(next); };
+  // Automatically apply depth-map-03.png while TTS panel is active
+  useEffect(() => {
+    if (showTTSPanel) {
+      previousDepthUrlRef.current = configRef.current.depthUrl;
+      if (configRef.current.depthUrl !== '/depth-map-03.png') {
+        const next = { ...configRef.current, depthUrl: '/depth-map-03.png' };
+        configRef.current = next;
+        setUiState(next);
+      }
+    } else {
+      const prev = previousDepthUrlRef.current;
+      if (prev && configRef.current.depthUrl !== prev) {
+        const next = { ...configRef.current, depthUrl: prev };
+        configRef.current = next;
+        setUiState(next);
+      }
+    }
+  }, [showTTSPanel]);
 
   // 移除 AI 生成区域（按需求暂不显示）
 
@@ -224,6 +258,21 @@ export default function MatrixAI() {
   const depthDimsRef = useRef({ w: 0, h: 0 });
   const depthVideoEl = useRef(null);
   const depthOffscreenRef = useRef(null);
+  const handleDepthCanvasReady = useCallback((canvas) => {
+    ttsDepthCanvasRef.current = canvas;
+    if (canvas) {
+      isTtsDepthActiveRef.current = true;
+      setIsTtsDepthActive(true);
+      setDepthInfo(`${canvas.width || canvas.clientWidth || 0}×${canvas.height || canvas.clientHeight || 0} (TTS canvas)`);
+      setDepthPreview(null);
+    } else {
+      isTtsDepthActiveRef.current = false;
+      setIsTtsDepthActive(false);
+      depthLumaRef.current = null;
+      setDepthInfo(null);
+      setDepthPreview(null);
+    }
+  }, []);
 
   const colCountRef = useRef(0);
   const segHeadsRef = useRef(null);
@@ -237,6 +286,7 @@ export default function MatrixAI() {
   const fpsCountRef = useRef(0);
   const fpsStartRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
   const lastVideoSampleRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
+  const lastCanvasSampleRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
   const [fps, setFps] = useState(0);
 
   const ensureOffscreen = useCallback((w, h) => {
@@ -267,6 +317,37 @@ export default function MatrixAI() {
     const ox = Math.floor((cw - dw) / 2); const oy = Math.floor((ch - dh) / 2);
     g.fillStyle = "#000"; g.fillRect(0, 0, cw, ch); g.drawImage(video, ox, oy, dw, dh);
     try { const imageData = g.getImageData(0, 0, cw, ch); const data = imageData.data; const luma = new Uint8Array(cw * ch); for (let i = 0; i < cw * ch; i++) { const r = data[i * 4]; const gVal = data[i * 4 + 1]; const b = data[i * 4 + 2]; luma[i] = (0.299 * r + 0.587 * gVal + 0.114 * b) | 0; } depthLumaRef.current = luma; depthDimsRef.current = { w: cw, h: ch }; } catch (e) { console.warn("depth video resample failed", e); depthLumaRef.current = null; }
+  }, [ensureOffscreen]);
+
+  const resampleFromCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    const sourceCanvas = ttsDepthCanvasRef.current;
+    if (!canvas || !sourceCanvas) return;
+    const cw = canvas.clientWidth;
+    const ch = canvas.clientHeight;
+    if (!cw || !ch) return;
+    const off = ensureOffscreen(cw, ch);
+    const g = off.getContext('2d', { willReadFrequently: true });
+    if (!g) return;
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, cw, ch);
+    g.drawImage(sourceCanvas, 0, 0, cw, ch);
+    try {
+      const imageData = g.getImageData(0, 0, cw, ch);
+      const data = imageData.data;
+      const luma = new Uint8Array(cw * ch);
+      for (let i = 0; i < cw * ch; i++) {
+        const r = data[i * 4];
+        const gVal = data[i * 4 + 1];
+        const b = data[i * 4 + 2];
+        luma[i] = (0.299 * r + 0.587 * gVal + 0.114 * b) | 0;
+      }
+      depthLumaRef.current = luma;
+      depthDimsRef.current = { w: cw, h: ch };
+    } catch (e) {
+      console.warn('tts canvas resample failed', e);
+      depthLumaRef.current = null;
+    }
   }, [ensureOffscreen]);
 
   const getDepthValue = (x, y) => { const luma = depthLumaRef.current; if (!luma) return 0.5; const dims = depthDimsRef.current || { w: 0, h: 0 }; const w = dims.w || 0; const h = dims.h || 0; if (!w || !h) return 0.5; const ix = x | 0; const iy = y | 0; if (ix < 0 || ix >= w || iy < 0 || iy >= h) return 0.5; const idx = iy * w + ix; const v = luma[idx]; return DEPTH_LUT[v]; };
@@ -354,6 +435,11 @@ export default function MatrixAI() {
   // 生成逻辑已移除
 
   useEffect(() => {
+    if (isTtsDepthActive) {
+      depthImageEl.current = null;
+      depthVideoEl.current = null;
+      return () => {};
+    }
     let cancelled = false; const url = uiState.depthUrl; if (!url) return;
     if (isVideoUrl(url)) {
       depthImageEl.current = null;
@@ -400,20 +486,37 @@ export default function MatrixAI() {
     };
     tryLoad(url);
     return () => { cancelled = true; };
-  }, [uiState.depthUrl, resampleFromImage, resampleFromVideo]);
+  }, [uiState.depthUrl, resampleFromImage, resampleFromVideo, isTtsDepthActive]);
 
   useEffect(() => {
-    const onResize = () => { const c = canvasRef.current; if (!c) return; fitCanvas(c); if (depthVideoEl.current) { resampleFromVideo(); } else { resampleFromImage(); } };
+    const onResize = () => {
+      const c = canvasRef.current;
+      if (!c) return;
+      fitCanvas(c);
+      if (isTtsDepthActiveRef.current) {
+        resampleFromCanvas();
+      } else if (depthVideoEl.current) {
+        resampleFromVideo();
+      } else {
+        resampleFromImage();
+      }
+    };
     onResize();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [resampleFromImage, resampleFromVideo]);
+  }, [resampleFromImage, resampleFromVideo, resampleFromCanvas]);
 
   useEffect(() => {
     let rafId = 0;
     const loop = () => {
       if (running) {
-        if (depthVideoEl.current) {
+        const nowSample = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (isTtsDepthActiveRef.current) {
+          if (nowSample - lastCanvasSampleRef.current >= 33) {
+            resampleFromCanvas();
+            lastCanvasSampleRef.current = nowSample;
+          }
+        } else if (depthVideoEl.current) {
           const nowSample = typeof performance !== 'undefined' ? performance.now() : Date.now();
           if (nowSample - lastVideoSampleRef.current >= 33) { // ~30fps sampling
             resampleFromVideo();
@@ -436,7 +539,7 @@ export default function MatrixAI() {
     };
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
-  }, [running, draw]);
+  }, [running, draw, resampleFromCanvas, resampleFromVideo]);
 
   return (
     <div style={{ position:'relative', width:'100%', height:'100vh', background:'#0b0b0f' }}>
@@ -444,6 +547,11 @@ export default function MatrixAI() {
       <div style={{ position:'absolute', top:10, left:12, color:'#a7f3d0', fontSize:12, background:'rgba(6,6,8,0.5)', border:'1px solid rgba(255,255,255,0.10)', padding:'6px 8px', borderRadius:8 }}>
         FPS: {fps}
       </div>
+      {showTTSPanel && (
+        <div style={{ position:'absolute', bottom:20, left:20, right:20, maxWidth:500, zIndex:25 }}>
+          <TTSCharacterPanel onDepthCanvasReady={handleDepthCanvasReady} />
+        </div>
+      )}
       <Panel
         running={running}
         setRunning={setRunning}
@@ -453,8 +561,11 @@ export default function MatrixAI() {
         updateConfig={updateConfig}
         depthPreview={depthPreview}
         depthInfo={depthInfo}
+        isTtsDepthActive={isTtsDepthActive}
         collapsed={collapsed}
         setCollapsed={setCollapsed}
+        showTTSPanel={showTTSPanel}
+        setShowTTSPanel={setShowTTSPanel}
       />
     </div>
   );
