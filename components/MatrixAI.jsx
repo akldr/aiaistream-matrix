@@ -59,7 +59,7 @@ function isVideoUrl(url) {
 
 // 抽出独立 Panel 组件
 const Panel = (props) => {
-  const { running, setRunning, onReset, onDownload, uiState, updateConfig, depthPreview, depthInfo, collapsed, setCollapsed, showTTSPanel, setShowTTSPanel, isTtsDepthActive } = props;
+  const { running, setRunning, onReset, onDownload, uiState, updateConfig, depthPreview, depthInfo, collapsed, setCollapsed, isTtsDepthActive, onDepthCanvasReady } = props;
   return (
     <div style={{ position:'absolute', top:20, right:20, bottom:20, zIndex:20, display:'flex', flexDirection:'column', alignItems:'flex-end', pointerEvents:'none' }}>
       <div style={{ pointerEvents:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10, maxHeight:'100%' }}>
@@ -68,8 +68,8 @@ const Panel = (props) => {
             <ChevronsLeft className="h-4 w-4" />
           </Button>
         ) : (
-          <Card style={{ width: 'min(420px, 100vw)', maxHeight:'100%', overflowY:'auto' }}>
-            <CardHeader>
+          <Card style={{ width: 'min(max(360px, 30vw), 480px)', maxWidth:'calc(100vw - 40px)', maxHeight:'100%', overflowY:'auto', display:'flex', flexDirection:'column' }}>
+            <CardHeader style={{ flexShrink:0 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
                 <CardTitle>
                   <Sparkles className="h-4 w-4" style={{ color:'#34d399' }} /> Matrix with Depth
@@ -90,14 +90,6 @@ const Panel = (props) => {
                 </Button>
                 <Button variant="secondary" size="icon" onClick={onDownload}>
                   <Download className="h-3 w-3" />
-                </Button>
-                <Button 
-                  variant={showTTSPanel ? "primary" : "secondary"} 
-                  size="sm" 
-                  style={{ flex:1 }} 
-                  onClick={() => setShowTTSPanel(!showTTSPanel)}
-                >
-                  {showTTSPanel ? 'Hide TTS' : 'TTS Panel'}
                 </Button>
               </div>
             </CardHeader>
@@ -153,6 +145,12 @@ const Panel = (props) => {
                   </div>
                 </div>
               </div>
+
+              {/* TTS Lip Sync Controls - Integrated */}
+              <div id="tts-panel" style={{ marginTop:16, paddingTop:16, borderTop:'1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ fontSize:11, fontWeight:600, color:'#a1a1aa', marginBottom:12, letterSpacing:'0.5px' }}>🎤 TTS LIP SYNC</div>
+                <TTSCharacterPanel onDepthCanvasReady={props.onDepthCanvasReady} isEmbedded={true} />
+              </div>
             </CardContent>
           </Card>
         )}
@@ -170,7 +168,18 @@ function clamp(v, a = 0, b = 1) { return Math.max(a, Math.min(b, v)); }
 const DEPTH_LUT = new Float32Array(256);
 for (let i = 0; i < 256; i++) { const x = i / 255; const shifted = (x - 0.5) * 1.6; let y = clamp(0.5 + shifted, 0, 1); if (y >= 0.5) { y = 0.5 + Math.pow(y - 0.5, 0.7); } else { y = 0.5 - Math.pow(0.5 - y, 0.7); } DEPTH_LUT[i] = clamp(y, 0, 1); }
 function hash32(a) { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
-function fitCanvas(canvas) { const ratio = Math.min(window.devicePixelRatio || 1, 2); const parent = canvas.parentElement; if (!parent) return; const bounds = parent.getBoundingClientRect(); const W = Math.max(1, Math.floor(bounds.width)); const H = Math.max(1, Math.floor(bounds.height)); const targetW = Math.floor(W * ratio); const targetH = Math.floor(H * ratio); if (canvas.width !== targetW || canvas.height !== targetH) { canvas.style.width = `${W}px`; canvas.style.height = `${H}px`; canvas.width = targetW; canvas.height = targetH; const ctx = canvas.getContext("2d"); if (ctx) ctx.setTransform(ratio, 0, 0, ratio, 0, 0); } }
+function fitCanvas(canvas, aspect = 1) { const ratio = Math.min(window.devicePixelRatio || 1, 2); const parent = canvas.parentElement; if (!parent) return; const bounds = parent.getBoundingClientRect(); const W = Math.max(1, Math.floor(bounds.width)); const H = Math.max(1, Math.floor(bounds.height));
+  // Maintain source aspect ratio (fallback to 1:1)
+  const safeAspect = Math.max(0.1, Math.min(10, aspect || 1));
+  let drawW = W;
+  let drawH = Math.round(W / safeAspect);
+  if (drawH > H) {
+    drawH = H;
+    drawW = Math.round(H * safeAspect);
+  }
+  const targetW = Math.floor(drawW * ratio); const targetH = Math.floor(drawH * ratio);
+  if (canvas.width !== targetW || canvas.height !== targetH) { canvas.style.width = `${drawW}px`; canvas.style.height = `${drawH}px`; canvas.width = targetW; canvas.height = targetH; const ctx = canvas.getContext("2d"); if (ctx) ctx.setTransform(ratio, 0, 0, ratio, 0, 0); }
+}
 
 function hueToRGB(h) {
   const H = ((h % 360) + 360) % 360;
@@ -224,38 +233,19 @@ export default function MatrixAI() {
   const [collapsed, setCollapsed] = useState(false);
   const [depthPreview, setDepthPreview] = useState(null);
   const [depthInfo, setDepthInfo] = useState(null);
-  const [showTTSPanel, setShowTTSPanel] = useState(false);
-  const previousDepthUrlRef = useRef(DEFAULT_DEPTH_URL);
   const ttsDepthCanvasRef = useRef(null);
   const isTtsDepthActiveRef = useRef(false);
   const [isTtsDepthActive, setIsTtsDepthActive] = useState(false);
   const configRef = useRef({ ...DEFAULT_CONFIG });
   const [uiState, setUiState] = useState({ ...DEFAULT_CONFIG });
   const updateConfig = (key, value) => { const next = { ...configRef.current, [key]: value }; configRef.current = next; setUiState(next); };
-  // Automatically apply depth-map-03.png while TTS panel is active
-  useEffect(() => {
-    if (showTTSPanel) {
-      previousDepthUrlRef.current = configRef.current.depthUrl;
-      if (configRef.current.depthUrl !== '/depth-map-03.png') {
-        const next = { ...configRef.current, depthUrl: '/depth-map-03.png' };
-        configRef.current = next;
-        setUiState(next);
-      }
-    } else {
-      const prev = previousDepthUrlRef.current;
-      if (prev && configRef.current.depthUrl !== prev) {
-        const next = { ...configRef.current, depthUrl: prev };
-        configRef.current = next;
-        setUiState(next);
-      }
-    }
-  }, [showTTSPanel]);
 
   // 移除 AI 生成区域（按需求暂不显示）
 
   const depthImageEl = useRef(null);
   const depthLumaRef = useRef(null);
   const depthDimsRef = useRef({ w: 0, h: 0 });
+  const depthAspectRef = useRef(1); // Track source aspect ratio to avoid stretching
   const depthVideoEl = useRef(null);
   const depthOffscreenRef = useRef(null);
   const handleDepthCanvasReady = useCallback((canvas) => {
@@ -263,7 +253,14 @@ export default function MatrixAI() {
     if (canvas) {
       isTtsDepthActiveRef.current = true;
       setIsTtsDepthActive(true);
-      setDepthInfo(`${canvas.width || canvas.clientWidth || 0}×${canvas.height || canvas.clientHeight || 0} (TTS canvas)`);
+      const cw = canvas.width || canvas.clientWidth || 0;
+      const ch = canvas.height || canvas.clientHeight || 0;
+      if (cw && ch) {
+        depthAspectRef.current = cw / ch;
+        const c = canvasRef.current;
+        if (c) fitCanvas(c, depthAspectRef.current);
+      }
+      setDepthInfo(`${cw}×${ch} (TTS canvas)`);
       setDepthPreview(null);
     } else {
       isTtsDepthActiveRef.current = false;
@@ -298,6 +295,8 @@ export default function MatrixAI() {
 
   const resampleFromImage = useCallback(() => {
     const canvas = canvasRef.current; const img = depthImageEl.current; if (!canvas || !img) { depthLumaRef.current = null; return; }
+    depthAspectRef.current = img.naturalWidth && img.naturalHeight ? (img.naturalWidth / img.naturalHeight) : 1;
+    fitCanvas(canvas, depthAspectRef.current);
     const cw = canvas.clientWidth; const ch = canvas.clientHeight; if (!cw || !ch) return;
     const off = ensureOffscreen(cw, ch); const g = off.getContext("2d", { willReadFrequently: true }); if (!g) return;
     const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
@@ -310,6 +309,8 @@ export default function MatrixAI() {
   const resampleFromVideo = useCallback(() => {
     const canvas = canvasRef.current; const video = depthVideoEl.current; if (!canvas || !video) return;
     if (video.readyState < 2) return; // not enough data
+    depthAspectRef.current = video.videoWidth && video.videoHeight ? (video.videoWidth / video.videoHeight) : depthAspectRef.current;
+    fitCanvas(canvas, depthAspectRef.current);
     const cw = canvas.clientWidth; const ch = canvas.clientHeight; if (!cw || !ch) return;
     const off = ensureOffscreen(cw, ch); const g = off.getContext("2d", { willReadFrequently: true }); if (!g) return;
     const scale = Math.max(cw / video.videoWidth, ch / video.videoHeight);
@@ -323,6 +324,12 @@ export default function MatrixAI() {
     const canvas = canvasRef.current;
     const sourceCanvas = ttsDepthCanvasRef.current;
     if (!canvas || !sourceCanvas) return;
+    const sw = sourceCanvas.width || sourceCanvas.clientWidth || 0;
+    const sh = sourceCanvas.height || sourceCanvas.clientHeight || 0;
+    if (sw && sh) {
+      depthAspectRef.current = sw / sh;
+      fitCanvas(canvas, depthAspectRef.current);
+    }
     const cw = canvas.clientWidth;
     const ch = canvas.clientHeight;
     if (!cw || !ch) return;
@@ -387,7 +394,8 @@ export default function MatrixAI() {
       for (let j = 0; j < drawTailLen; j++) {
         const rowPos = headRow - j;
         const yChar = rowPos * fontSize;
-        if (yChar < -fontSize * 2 || yChar > H + fontSize) continue;
+        // 允许尾部完全延伸到底部边缘和上方，不提前裁剪
+        if (yChar < -fontSize || yChar > H + fontSize * 2) continue;
         const rowIndex = rowPos | 0;
         const isHeadChar = j === 0;
         const tTail = effectiveTail > 1 ? j / (effectiveTail - 1) : 0;
@@ -492,7 +500,7 @@ export default function MatrixAI() {
     const onResize = () => {
       const c = canvasRef.current;
       if (!c) return;
-      fitCanvas(c);
+      fitCanvas(c, depthAspectRef.current || 1);
       if (isTtsDepthActiveRef.current) {
         resampleFromCanvas();
       } else if (depthVideoEl.current) {
@@ -542,16 +550,11 @@ export default function MatrixAI() {
   }, [running, draw, resampleFromCanvas, resampleFromVideo]);
 
   return (
-    <div style={{ position:'relative', width:'100%', height:'100vh', background:'#0b0b0f' }}>
-      <canvas ref={canvasRef} style={{ display:'block', width:'100%', height:'100%' }} />
+    <div style={{ position:'relative', width:'100%', height:'100vh', background:'#0b0b0f', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <canvas ref={canvasRef} style={{ display:'block', maxWidth:'100%', maxHeight:'100%' }} />
       <div style={{ position:'absolute', top:10, left:12, color:'#a7f3d0', fontSize:12, background:'rgba(6,6,8,0.5)', border:'1px solid rgba(255,255,255,0.10)', padding:'6px 8px', borderRadius:8 }}>
         FPS: {fps}
       </div>
-      {showTTSPanel && (
-        <div style={{ position:'absolute', bottom:20, left:20, right:20, maxWidth:500, zIndex:25 }}>
-          <TTSCharacterPanel onDepthCanvasReady={handleDepthCanvasReady} />
-        </div>
-      )}
       <Panel
         running={running}
         setRunning={setRunning}
@@ -564,8 +567,7 @@ export default function MatrixAI() {
         isTtsDepthActive={isTtsDepthActive}
         collapsed={collapsed}
         setCollapsed={setCollapsed}
-        showTTSPanel={showTTSPanel}
-        setShowTTSPanel={setShowTTSPanel}
+        onDepthCanvasReady={handleDepthCanvasReady}
       />
     </div>
   );

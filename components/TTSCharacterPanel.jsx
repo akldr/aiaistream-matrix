@@ -8,9 +8,10 @@ import { ImageBasedFaceAnimator } from '../lib/imageBasedFace';
 import { SpeechSynthesizer } from '../lib/speechEngine';
 import { Play, Pause, RotateCcw } from 'lucide-react';
 
-const TTSCharacterPanel = ({ onDepthCanvasReady }) => {
-  const [isEnabled, setIsEnabled] = useState(false);
+const TTSCharacterPanel = ({ onDepthCanvasReady, isEmbedded = false }) => {
+  const [isEnabled, setIsEnabled] = useState(true);
   const [ttsEngine, setTtsEngine] = useState('web-speech');
+  const [ttsLanguage, setTtsLanguage] = useState('auto'); // 'auto', 'en', 'zh'
   const [apiKey, setApiKey] = useState('');
   const [ttsText, setTtsText] = useState(`Congratulations!
 Today is your day.
@@ -24,6 +25,7 @@ any direction you choose.
 You're on your own. And you know what you know.
 And YOU are the guy who'll decide where to go.`);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [debugInfo, setDebugInfo] = useState({ viseme: '-', mouthOpenness: '-' });
 
   // Refs
   const canvasRef = useRef(null);
@@ -47,21 +49,36 @@ And YOU are the guy who'll decide where to go.`);
             return;
           }
 
-          // 初始化图片动画器（使用 depth-map-03.png）
+          // 初始化图片动画器（使用黑白恐怖照片 v2）
           if (!faceModelRef.current) {
-            try {
-              faceModelRef.current = new ImageBasedFaceAnimator(
-                canvasRef.current,
-                '/depth-map-03.png'
-              );
-              await faceModelRef.current.loadImage();
-              console.log('ImageBasedFaceAnimator initialized');
-              if (typeof onDepthCanvasReady === 'function') {
-                onDepthCanvasReady(canvasRef.current);
+            const sources = [
+              '/photo-bw-lipsync-creepy-2.png',
+              '/photo-bw-lipsync-creepy.png',
+              '/depth-map-lipsync.png',
+              '/photo-rgb-lipsync.png'
+            ];
+            let lastError = null;
+            for (const src of sources) {
+              try {
+                faceModelRef.current = new ImageBasedFaceAnimator(
+                  canvasRef.current,
+                  src
+                );
+                await faceModelRef.current.loadImage();
+                console.log('ImageBasedFaceAnimator initialized with', src);
+                if (typeof onDepthCanvasReady === 'function') {
+                  onDepthCanvasReady(canvasRef.current);
+                }
+                lastError = null;
+                break;
+              } catch (err) {
+                console.error('Failed to initialize ImageBasedFaceAnimator with', src, err);
+                faceModelRef.current = null;
+                lastError = err;
               }
-            } catch (err) {
-              console.error('Failed to initialize ImageBasedFaceAnimator:', err);
-              return;
+            }
+            if (lastError) {
+              throw lastError;
             }
           }
 
@@ -73,10 +90,18 @@ And YOU are the guy who'll decide where to go.`);
 
           speechSynthesizerRef.current = new SpeechSynthesizer({
             engine: ttsEngine,
+            language: ttsLanguage,
             apiKey: ttsEngine === 'elevenlabs' ? apiKey : '',
-            onViseme: ({ viseme, energy }) => {
+            onViseme: ({ viseme, energy, width, height }) => {
               if (faceModelRef.current) {
-                faceModelRef.current.updateViseme(viseme, energy);
+                faceModelRef.current.updateViseme(viseme, energy, width, height);
+                // 更新调试信息
+                setDebugInfo({
+                  viseme: viseme || '-',
+                  mouthOpenness: (faceModelRef.current.mouthOpenness * 100).toFixed(0) + '%',
+                  width: width ? (width * 100).toFixed(0) + '%' : '-',
+                  height: height ? (height * 100).toFixed(0) + '%' : '-'
+                });
               }
             },
             onSpeechStart: () => {
@@ -225,11 +250,27 @@ And YOU are the guy who'll decide where to go.`);
     }
   }, [handleStop]);
 
+  const containerStyle = isEmbedded ? {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12
+  } : {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+    padding: 16,
+    background: 'rgba(12,12,16,0.92)',
+    borderRadius: 14,
+    border: '1px solid rgba(255,255,255,0.10)'
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 16, background: 'rgba(12,12,16,0.92)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.10)' }}>
-      <h2 style={{ margin: 0, color: '#e5e7eb', fontSize: 16, fontWeight: 700 }}>
-        🎤 实时TTS动画
-      </h2>
+    <div style={containerStyle}>
+      {!isEmbedded && (
+        <h2 style={{ margin: 0, color: '#e5e7eb', fontSize: 16, fontWeight: 700 }}>
+          🎤 实时TTS动画
+        </h2>
+      )}
 
       {/* 启用/禁用切换 */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -293,6 +334,31 @@ And YOU are the guy who'll decide where to go.`);
             </div>
           )}
 
+          {/* 语言选择 */}
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>
+              语言 / Language
+            </label>
+            <select
+              value={ttsLanguage}
+              onChange={(e) => setTtsLanguage(e.target.value)}
+              style={{
+                height: 32,
+                borderRadius: 8,
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(24,24,27,0.6)',
+                color: '#e5e7eb',
+                fontSize: 12,
+                padding: '6px 10px',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="auto">自动检测 / Auto-detect</option>
+              <option value="en">English (英文)</option>
+              <option value="zh">中文 (Chinese)</option>
+            </select>
+          </div>
+
           {/* 文本输入 */}
           <div style={{ display: 'grid', gap: 8 }}>
             <label style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>
@@ -337,8 +403,24 @@ And YOU are the guy who'll decide where to go.`);
                 width: '100%',
                 height: 'auto',
                 maxHeight: '400px',
+                objectFit: 'contain', // 按比例显示，不压缩变形
+                imageRendering: 'auto'
               }}
             />
+          </div>
+
+          {/* 实时调试信息 */}
+          <div style={{
+            padding: 10,
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: 'rgba(24,24,27,0.6)',
+            fontSize: 11,
+            color: '#a0a0a8',
+            fontFamily: 'monospace'
+          }}>
+            <div>Viseme: <span style={{ color: '#3b82f6' }}>{debugInfo.viseme}</span></div>
+            <div>Mouth: <span style={{ color: '#10b981' }}>{debugInfo.mouthOpenness}</span></div>
           </div>
 
           {/* 控制按钮 */}

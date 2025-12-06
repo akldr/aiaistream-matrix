@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LipSync Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            color: #fff;
+            font-family: monospace;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        canvas {
+            border: 1px solid #fff;
+            background: #000;
+            width: 100%;
+            height: auto;
+            margin: 20px 0;
+        }
+        .debug {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #3b82f6;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>LipSync Debug Test</h1>
+        
+        <canvas id="canvas" width="512" height="512"></canvas>
+        
+        <div class="debug">
+            <div>Status: <span id="status">-</span></div>
+            <div>MouthOpenness: <span id="mouthOpenness">-</span></div>
+            <div>TargetMouthOpenness: <span id="targetMouthOpenness">-</span></div>
+            <div>CurrentViseme: <span id="currentViseme">-</span></div>
+            <div>RenderFrames: <span id="frames">0</span></div>
+        </div>
+        
+        <div>
+            <button onclick="testViseme('A', 1.0)">Test A (大开)</button>
+            <button onclick="testViseme('M', 0.1)">Test M (小开)</button>
+            <button onclick="testViseme('E', 0.7)">Test E (中开)</button>
+            <button onclick="startAnimation()">Start Animation</button>
+            <button onclick="stopAnimation()">Stop Animation</button>
+            <button onclick="testSpeech()">Test Speech Sync</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ImageBasedFaceAnimator } from './lib/imageBasedFace.js';
+
+        const canvas = document.getElementById('canvas');
+        let animator = null;
+        let animationId = null;
+        let frameCount = 0;
+
+        async function init() {
+            try {
+                animator = new ImageBasedFaceAnimator(canvas, '/depth-map-lipsync.png');
+                await animator.loadImage();
+                document.getElementById('status').textContent = 'Initialized';
+                console.log('Animator initialized');
+                startRenderLoop();
+            } catch (err) {
+                document.getElementById('status').textContent = 'Error: ' + err.message;
+                console.error('Failed to init:', err);
+            }
+        }
+
+        function startRenderLoop() {
+            const render = () => {
+                if (animator) {
+                    animator.render();
+                    frameCount++;
+                    updateDebug();
+                }
+                animationId = requestAnimationFrame(render);
+            };
+            render();
+        }
+
+        function updateDebug() {
+            document.getElementById('mouthOpenness').textContent = (animator.mouthOpenness * 100).toFixed(1) + '%';
+            document.getElementById('targetMouthOpenness').textContent = (animator.targetMouthOpenness * 100).toFixed(1) + '%';
+            document.getElementById('currentViseme').textContent = animator.currentViseme || '-';
+            document.getElementById('frames').textContent = frameCount;
+        }
+
+        window.testViseme = function(viseme, intensity) {
+            if (!animator) return;
+            console.log(`Testing viseme: ${viseme} with intensity ${intensity}`);
+            animator.updateViseme(viseme, intensity);
+        };
+
+        window.startAnimation = function() {
+            if (!animator) return;
+            console.log('Starting animation test...');
+            const visemes = ['A', 'E', 'I', 'O', 'U', 'M'];
+            let index = 0;
+            const interval = setInterval(() => {
+                const v = visemes[index % visemes.length];
+                animator.updateViseme(v, Math.random() * 0.5 + 0.5);
+                console.log(`Switched to viseme: ${v}`);
+                index++;
+                if (index > 20) {
+                    clearInterval(interval);
+                    console.log('Animation test complete');
+                }
+            }, 300);
+        };
+
+        window.stopAnimation = function() {
+            frameCount = 0;
+            if (animator) {
+                animator.updateViseme('M', 0);
+                console.log('Animation stopped');
+            }
+        };
+
+        window.testSpeech = function() {
+            if (!animator) return;
+            const text = "Hello World";
+            const utterance = new SpeechSynthesisUtterance(text);
+            
+            let charIndex = 0;
+            const visemeMap = {
+                'H': 'A', 'e': 'E', 'l': 'L', 'o': 'O', ' ': 'M',
+                'W': 'W', 'r': 'R', 'd': 'M'
+            };
+
+            utterance.onboundary = (event) => {
+                const char = text.charAt(event.charIndex);
+                const viseme = visemeMap[char] || 'A';
+                animator.updateViseme(viseme, 0.7);
+                console.log(`Boundary: char="${char}", viseme="${viseme}", charIndex=${event.charIndex}`);
+            };
+
+            utterance.onstart = () => {
+                console.log('Speech started');
+            };
+
+            utterance.onend = () => {
+                console.log('Speech ended');
+                animator.updateViseme('M', 0);
+            };
+
+            window.speechSynthesis.speak(utterance);
+        };
+
+        // Initialize on load
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
