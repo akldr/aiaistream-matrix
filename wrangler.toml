@@ -1,0 +1,7 @@
+name = "aiaistream-tts-logger"
+main = "src/worker.js"
+compatibility_date = "2024-12-01"
+
+[[env.production.kv_namespaces]]
+binding = "TTS_LOGS"
+id = "your_kv_namespace_id"

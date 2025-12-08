@@ -223,7 +223,8 @@ const TTSCharacterPanel = ({
     const trimmed = text.trim().slice(0, 300);
     if (!trimmed) return;
     try {
-      await fetch('/api/tts-log', {
+      const apiEndpoint = process.env.NEXT_PUBLIC_TTS_API_ENDPOINT || '/api/tts-log';
+      await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: trimmed })
