@@ -63,7 +63,7 @@ const TTSCharacterPanel = ({
       const initializeComponents = async () => {
         try {
           if (!canvasRef.current) {
-            console.error('Canvas ref not found');
+            // Canvas ref not found - silently skip
             return;
           }
 
@@ -84,14 +84,13 @@ const TTSCharacterPanel = ({
                   src
                 );
                 await faceModelRef.current.loadImage();
-                console.log('ImageBasedFaceAnimator initialized with', src);
+                // ImageBasedFaceAnimator initialized
                 if (typeof onDepthCanvasReady === 'function') {
                   onDepthCanvasReady(canvasRef.current);
                 }
                 lastError = null;
                 break;
               } catch (err) {
-                console.error('Failed to initialize ImageBasedFaceAnimator with', src, err);
                 faceModelRef.current = null;
                 lastError = err;
               }
@@ -146,12 +145,12 @@ const TTSCharacterPanel = ({
               }
             },
           });
-          console.log('SpeechSynthesizer initialized');
+          // SpeechSynthesizer initialized
 
           // 启动动画循环
           startAnimationLoop();
         } catch (error) {
-          console.error('Failed to initialize TTS components:', error);
+          // Initialization failed - continue silently
         }
       };
 
@@ -168,7 +167,6 @@ const TTSCharacterPanel = ({
   // 独立的清理效果，只在组件卸载时执行
   useEffect(() => {
     return () => {
-      console.log('TTSCharacterPanel unmounting - cleaning up resources');
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
@@ -209,7 +207,7 @@ const TTSCharacterPanel = ({
           faceModelRef.current.render();
         }
       } catch (error) {
-        console.error('Animation loop error:', error);
+        // Animation error - continue silently
       }
 
       animationFrameRef.current = requestAnimationFrame(animate);
@@ -231,7 +229,7 @@ const TTSCharacterPanel = ({
         body: JSON.stringify({ text: trimmed })
       });
     } catch (err) {
-      console.error('Persisting TTS log to server failed:', err);
+      // Log persistence failed - silently continue
     }
   }, []);
 
@@ -256,7 +254,6 @@ const TTSCharacterPanel = ({
 
     // Prevent starting new speech while already playing
     if (isPlaying) {
-      console.log('Speech already in progress, ignoring play request');
       return;
     }
 
@@ -268,7 +265,7 @@ const TTSCharacterPanel = ({
       }
 
       const result = await speechSynthesizerRef.current.synthesize(ttsText);
-      console.log('TTS completed, duration:', result.duration);
+      // TTS completed
     } catch (error) {
       console.error('TTS synthesis failed:', error);
       alert(`语音合成失败: ${error.message}`);

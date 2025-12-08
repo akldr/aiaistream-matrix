@@ -535,7 +535,7 @@ export default function MatrixAI() {
       depthLumaRef.current = luma;
       depthDimsRef.current = { w: cw, h: ch };
     } catch (e) {
-      console.warn('tts canvas resample failed', e);
+      // Canvas resample failed - continue with default depth
       depthLumaRef.current = null;
     }
   }, [ensureOffscreen]);
