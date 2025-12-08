@@ -6,28 +6,48 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ImageBasedFaceAnimator } from '../lib/imageBasedFace';
 import { SpeechSynthesizer } from '../lib/speechEngine';
-import { Play, Pause, RotateCcw } from 'lucide-react';
+import { Play, Pause } from 'lucide-react';
 
-const TTSCharacterPanel = ({ onDepthCanvasReady, isEmbedded = false }) => {
-  const [isEnabled, setIsEnabled] = useState(true);
-  const [ttsEngine, setTtsEngine] = useState('web-speech');
-  const [ttsLanguage, setTtsLanguage] = useState('auto'); // 'auto', 'en', 'zh'
-  const [apiKey, setApiKey] = useState('');
-  const [ttsText, setTtsText] = useState(`Congratulations!
-Today is your day.
-You're off to Great Places!
-You're off and away!
-
-You have brains in your head.
-You have feet in your shoes.
-You can steer yourself
-any direction you choose.
-You're on your own. And you know what you know.
-And YOU are the guy who'll decide where to go.`);
+const TTSCharacterPanel = ({ 
+  onDepthCanvasReady, 
+  isEmbedded = false, 
+  isCompact = false,
+  ttsEngine: externalEngine,
+  ttsLanguage: externalLanguage,
+  apiKey: externalApiKey,
+  onEngineChange,
+  onLanguageChange,
+  onApiKeyChange,
+  onCanvasRefReady, // New: callback to pass canvas ref to parent
+  onDebugInfoUpdate // New: callback to pass debug info to parent
+}) => {
+  // Use external props if provided, otherwise use internal state
+  const [internalEngine, setInternalEngine] = useState('web-speech');
+  const [internalLanguage, setInternalLanguage] = useState('auto');
+  const [internalApiKey, setInternalApiKey] = useState('');
+  
+  const ttsEngine = externalEngine !== undefined ? externalEngine : internalEngine;
+  const ttsLanguage = externalLanguage !== undefined ? externalLanguage : internalLanguage;
+  const apiKey = externalApiKey !== undefined ? externalApiKey : internalApiKey;
+  
+  const setTtsEngine = (val) => {
+    if (onEngineChange) onEngineChange(val);
+    else setInternalEngine(val);
+  };
+  const setTtsLanguage = (val) => {
+    if (onLanguageChange) onLanguageChange(val);
+    else setInternalLanguage(val);
+  };
+  const setApiKey = (val) => {
+    if (onApiKeyChange) onApiKeyChange(val);
+    else setInternalApiKey(val);
+  };
+  
+  const [ttsText, setTtsText] = useState(`Congratulations! Today is your day. You're off to Great Places! You're off and away! You have brains in your head. You have feet in your shoes. You can steer yourself any direction you choose. You're on your own. And you know what you know. And YOU are the guy who'll decide where to go.`);
   const [isPlaying, setIsPlaying] = useState(false);
   const [debugInfo, setDebugInfo] = useState({ viseme: '-', mouthOpenness: '-' });
 
-  // Refs
+  // Refs - shared across all render modes
   const canvasRef = useRef(null);
   const faceModelRef = useRef(null);
   const speechSynthesizerRef = useRef(null);
@@ -38,8 +58,6 @@ And YOU are the guy who'll decide where to go.`);
    * Initialize components on mount
    */
   useEffect(() => {
-    if (!isEnabled) return;
-
     // 确保 Canvas 有正确的尺寸后再初始化
     const initTimer = setTimeout(() => {
       const initializeComponents = async () => {
@@ -50,6 +68,7 @@ And YOU are the guy who'll decide where to go.`);
           }
 
           // 初始化图片动画器（使用黑白恐怖照片 v2）
+          // 避免重复初始化，防止TTS中断
           if (!faceModelRef.current) {
             const sources = [
               '/photo-bw-lipsync-creepy-2.png',
@@ -96,12 +115,17 @@ And YOU are the guy who'll decide where to go.`);
               if (faceModelRef.current) {
                 faceModelRef.current.updateViseme(viseme, energy, width, height);
                 // 更新调试信息
-                setDebugInfo({
+                const newDebugInfo = {
                   viseme: viseme || '-',
                   mouthOpenness: (faceModelRef.current.mouthOpenness * 100).toFixed(0) + '%',
                   width: width ? (width * 100).toFixed(0) + '%' : '-',
                   height: height ? (height * 100).toFixed(0) + '%' : '-'
-                });
+                };
+                setDebugInfo(newDebugInfo);
+                // Pass debug info to parent if callback provided
+                if (onDebugInfoUpdate) {
+                  onDebugInfoUpdate(newDebugInfo);
+                }
               }
             },
             onSpeechStart: () => {
@@ -136,6 +160,15 @@ And YOU are the guy who'll decide where to go.`);
 
     return () => {
       clearTimeout(initTimer);
+      // 只在组件真正卸载时清理，不在父组件折叠时清理
+      // 这样可以防止UI折叠导致TTS中断
+    };
+  }, [ttsEngine, apiKey]);
+  
+  // 独立的清理效果，只在组件卸载时执行
+  useEffect(() => {
+    return () => {
+      console.log('TTSCharacterPanel unmounting - cleaning up resources');
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
@@ -145,6 +178,7 @@ And YOU are the guy who'll decide where to go.`);
       }
       if (faceModelRef.current) {
         faceModelRef.current.destroy();
+        faceModelRef.current = null;
       }
       if (speechSynthesizerRef.current) {
         speechSynthesizerRef.current.stopPlayback();
@@ -154,7 +188,15 @@ And YOU are the guy who'll decide where to go.`);
         onDepthCanvasReady(null);
       }
     };
-  }, [isEnabled, ttsEngine, apiKey, onDepthCanvasReady]);
+  }, []);
+
+  // 当 compact 模式切换时，强制重新渲染 canvas
+  useEffect(() => {
+    if (!isCompact && canvasRef.current && faceModelRef.current) {
+      // 展开模式时，强制刷新 canvas
+      faceModelRef.current.render();
+    }
+  }, [isCompact]);
 
   /**
    * 主动画循环 - 渲染面部
@@ -177,7 +219,22 @@ And YOU are the guy who'll decide where to go.`);
   }, [isPlaying]);
 
   /**
-   * 处理 TTS 合成和播放
+   * 将 TTS 文本按日期写入服务器日志
+   */
+  const logToServer = useCallback(async (text) => {
+    const trimmed = text.trim().slice(0, 300);
+    if (!trimmed) return;
+    try {
+      await fetch('/api/tts-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: trimmed })
+      });
+    } catch (err) {
+      console.error('Persisting TTS log to server failed:', err);
+    }
+  }, []);
+
   /**
    * 处理 TTS 合成和播放 - 实时动画
    */
@@ -204,6 +261,7 @@ And YOU are the guy who'll decide where to go.`);
     }
 
     try {
+      await logToServer(ttsText);
       if (playbackIntervalRef.current) {
         clearInterval(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
@@ -220,7 +278,7 @@ And YOU are the guy who'll decide where to go.`);
         playbackIntervalRef.current = null;
       }
     }
-  }, [ttsText]);
+  }, [ttsText, logToServer]);
 
   /**
    * 停止播放
@@ -252,231 +310,137 @@ And YOU are the guy who'll decide where to go.`);
 
   const containerStyle = isEmbedded ? {
     display: 'flex',
-    flexDirection: 'column',
-    gap: 12
+    flexWrap: 'wrap',
+    gap: 16,
+    alignItems: 'flex-start',
+    width: '100%'
   } : {
     display: 'flex',
-    flexDirection: 'column',
-    gap: 16,
+    flexWrap: 'wrap',
+    gap: 18,
     padding: 16,
     background: 'rgba(12,12,16,0.92)',
     borderRadius: 14,
-    border: '1px solid rgba(255,255,255,0.10)'
+    border: '1px solid rgba(255,255,255,0.10)',
+    width: '100%'
   };
 
-  return (
-    <div style={containerStyle}>
-      {!isEmbedded && (
-        <h2 style={{ margin: 0, color: '#e5e7eb', fontSize: 16, fontWeight: 700 }}>
-          🎤 实时TTS动画
-        </h2>
-      )}
-
-      {/* 启用/禁用切换 */}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <label style={{ color: '#cbd5e1', fontSize: 12 }}>
-          <input
-            type="checkbox"
-            checked={isEnabled}
-            onChange={(e) => setIsEnabled(e.target.checked)}
-            style={{ marginRight: 8 }}
+  // Compact mode: only show text input and play button
+  if (isCompact) {
+    return (
+      <>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', width: '100%', flexWrap: 'wrap' }}>
+          <textarea
+            value={ttsText}
+            onChange={(e) => setTtsText(e.target.value)}
+            placeholder="输入要转语音的文本..."
+            maxLength={300}
+            style={{
+              flex: '1 1 160px',
+              height: '100%',
+              minHeight: '50px',
+              borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'rgba(24,24,27,0.8)',
+              color: '#e5e7eb',
+              fontSize: 13,
+              padding: '8px 12px',
+              fontFamily: 'system-ui, sans-serif',
+              resize: 'none',
+            }}
           />
-          启用实时面部动画
+          <button
+            onClick={isPlaying ? handleStop : handleSpeak}
+            style={{
+              minWidth: '50px',
+              width: '50px',
+              height: '100%',
+              minHeight: '50px',
+              borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: isPlaying ? '#ef4444' : '#3b82f6',
+              color: '#ffffff',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0,
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent',
+              transition: 'background 0.2s ease',
+              padding: 0
+            }}
+          >
+            {isPlaying ? (
+              <Pause className="h-5 w-5" />
+            ) : (
+              <Play className="h-5 w-5" />
+            )}
+          </button>
+        </div>
+        {/* Canvas always exists but hidden in compact mode to preserve rendering state */}
+        <canvas
+          ref={(el) => {
+            canvasRef.current = el;
+            if (el && !el.width) {
+              el.width = 512;
+              el.height = 512;
+            }
+            // Pass canvas ref to parent for preview in main panel
+            if (el && onCanvasRefReady) {
+              onCanvasRefReady(el);
+            }
+          }}
+          style={{ display: 'none' }}
+        />
+      </>
+    );
+  }
+
+  // For embedded mode (in main panel): show canvas and debug info only
+  // Settings are now in the main panel
+  return (
+    <div style={{ display: 'grid', gap: 12, width: '100%' }}>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <label style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, color: '#90909b' }}>
+          面部动画预览
         </label>
+        <canvas
+          ref={(el) => {
+            canvasRef.current = el;
+            if (el && !el.width) {
+              el.width = 512;
+              el.height = 512;
+            }
+          }}
+          style={{
+            borderRadius: 10,
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: '#000000',
+            display: 'block',
+            width: '100%',
+            height: 'auto',
+            maxHeight: '200px',
+            objectFit: 'contain',
+            imageRendering: 'auto'
+          }}
+        />
       </div>
 
-      {isEnabled && (
-        <>
-          {/* 引擎选择 */}
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>
-              TTS 引擎
-            </label>
-            <select
-              value={ttsEngine}
-              onChange={(e) => setTtsEngine(e.target.value)}
-              style={{
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid rgba(255,255,255,0.12)',
-                background: 'rgba(24,24,27,0.6)',
-                color: '#e5e7eb',
-                fontSize: 12,
-                padding: '6px 10px',
-              }}
-            >
-              <option value="web-speech">Web Speech API (免费，内置)</option>
-              <option value="elevenlabs">ElevenLabs (高质，需API密钥)</option>
-            </select>
-          </div>
-
-          {/* API 密钥输入 (ElevenLabs) */}
-          {ttsEngine === 'elevenlabs' && (
-            <div style={{ display: 'grid', gap: 8 }}>
-              <label style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>
-                ElevenLabs API 密钥
-              </label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk_..."
-                style={{
-                  height: 32,
-                  borderRadius: 8,
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  background: 'rgba(24,24,27,0.6)',
-                  color: '#e5e7eb',
-                  fontSize: 12,
-                  padding: '6px 10px',
-                }}
-              />
-            </div>
-          )}
-
-          {/* 语言选择 */}
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>
-              语言 / Language
-            </label>
-            <select
-              value={ttsLanguage}
-              onChange={(e) => setTtsLanguage(e.target.value)}
-              style={{
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid rgba(255,255,255,0.12)',
-                background: 'rgba(24,24,27,0.6)',
-                color: '#e5e7eb',
-                fontSize: 12,
-                padding: '6px 10px',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="auto">自动检测 / Auto-detect</option>
-              <option value="en">English (英文)</option>
-              <option value="zh">中文 (Chinese)</option>
-            </select>
-          </div>
-
-          {/* 文本输入 */}
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>
-              文本内容
-            </label>
-            <textarea
-              value={ttsText}
-              onChange={(e) => setTtsText(e.target.value)}
-              placeholder="输入要转语音的文本..."
-              style={{
-                height: 80,
-                borderRadius: 8,
-                border: '1px solid rgba(255,255,255,0.12)',
-                background: 'rgba(24,24,27,0.6)',
-                color: '#e5e7eb',
-                fontSize: 12,
-                padding: '8px 10px',
-                fontFamily: 'monospace',
-                resize: 'none',
-              }}
-            />
-          </div>
-
-          {/* Canvas 预览 */}
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, color: '#90909b' }}>
-              面部动画预览
-            </label>
-            <canvas
-              ref={(el) => {
-                canvasRef.current = el;
-                if (el && !el.width) {
-                  el.width = 512;
-                  el.height = 512;
-                }
-              }}
-              style={{
-                borderRadius: 10,
-                border: '1px solid rgba(255,255,255,0.12)',
-                background: '#000000',
-                display: 'block',
-                width: '100%',
-                height: 'auto',
-                maxHeight: '400px',
-                objectFit: 'contain', // 按比例显示，不压缩变形
-                imageRendering: 'auto'
-              }}
-            />
-          </div>
-
-          {/* 实时调试信息 */}
-          <div style={{
-            padding: 10,
-            borderRadius: 8,
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: 'rgba(24,24,27,0.6)',
-            fontSize: 11,
-            color: '#a0a0a8',
-            fontFamily: 'monospace'
-          }}>
-            <div>Viseme: <span style={{ color: '#3b82f6' }}>{debugInfo.viseme}</span></div>
-            <div>Mouth: <span style={{ color: '#10b981' }}>{debugInfo.mouthOpenness}</span></div>
-          </div>
-
-          {/* 控制按钮 */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-            <button
-              onClick={isPlaying ? handleStop : handleSpeak}
-              style={{
-                height: 40,
-                borderRadius: 8,
-                border: '1px solid rgba(255,255,255,0.12)',
-                background: isPlaying ? '#ef4444' : '#3b82f6',
-                color: '#ffffff',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-              }}
-            >
-              {isPlaying ? (
-                <>
-                  <Pause className="h-4 w-4" /> 停止
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" /> 播放
-                </>
-              )}
-            </button>
-
-            <button
-              onClick={handleReset}
-              disabled={isPlaying}
-              style={{
-                height: 40,
-                borderRadius: 8,
-                border: '1px solid rgba(255,255,255,0.12)',
-                background: 'rgba(28,28,32,0.9)',
-                color: '#e5e7eb',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: isPlaying ? 'not-allowed' : 'pointer',
-                opacity: isPlaying ? 0.6 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-              }}
-            >
-              <RotateCcw className="h-4 w-4" /> 重置
-            </button>
-          </div>
-        </>
-      )}
+      <div style={{
+        padding: 10,
+        borderRadius: 8,
+        border: '1px solid rgba(255,255,255,0.12)',
+        background: 'rgba(24,24,27,0.6)',
+        fontSize: 11,
+        color: '#a0a0a8',
+        fontFamily: 'monospace'
+      }}>
+        <div>Viseme: <span style={{ color: '#3b82f6' }}>{debugInfo.viseme}</span></div>
+        <div>Mouth: <span style={{ color: '#10b981' }}>{debugInfo.mouthOpenness}</span></div>
+      </div>
     </div>
   );
 };

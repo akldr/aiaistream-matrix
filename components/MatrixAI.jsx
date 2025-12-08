@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Play, Pause, Sparkles, RotateCcw, Download, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Play, Pause, Sparkles, RotateCcw, Download, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp } from "lucide-react";
 import TTSCharacterPanel from "./TTSCharacterPanel";
 
 // 轻量 UI 组件（纯 JSX，无 TS 类型）
@@ -60,22 +60,76 @@ function isVideoUrl(url) {
 // 抽出独立 Panel 组件
 const Panel = (props) => {
   const { running, setRunning, onReset, onDownload, uiState, updateConfig, depthPreview, depthInfo, collapsed, setCollapsed, isTtsDepthActive, onDepthCanvasReady } = props;
+  
+  // 安全的折叠切换，防止影响TTS播放
+  const handleToggleCollapse = useCallback((shouldCollapse) => {
+    // 只改变UI状态，不影响TTS引擎
+    setCollapsed(shouldCollapse);
+  }, [setCollapsed]);
+  
+  // Check if current selection is TTS
+  const isTtsSelected = uiState.depthUrl === 'tts-live-face';
+  
   return (
-    <div style={{ position:'absolute', top:20, right:20, bottom:20, zIndex:20, display:'flex', flexDirection:'column', alignItems:'flex-end', pointerEvents:'none' }}>
+    <div style={{ 
+      position:'absolute', 
+      top: 'clamp(10px, 2vh, 20px)', 
+      right: 'clamp(10px, 2vw, 20px)', 
+      bottom: 'clamp(10px, 2vh, 20px)', 
+      zIndex:20, 
+      display:'flex', 
+      flexDirection:'column', 
+      alignItems:'flex-end', 
+      pointerEvents:'none',
+      maxWidth: 'calc(100vw - 20px)'
+    }}>
       <div style={{ pointerEvents:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10, maxHeight:'100%' }}>
-        {collapsed ? (
-          <Button variant="secondary" size="icon" onClick={() => setCollapsed(false)}>
+        {/* 折叠按钮 - 仅在折叠时显示 */}
+        {collapsed && (
+          <Button 
+            variant="secondary" 
+            size="icon" 
+            onClick={() => handleToggleCollapse(false)}
+            style={{ 
+              touchAction: 'manipulation',
+              minWidth: '44px',
+              minHeight: '44px'
+            }}
+          >
             <ChevronsLeft className="h-4 w-4" />
           </Button>
-        ) : (
-          <Card style={{ width: 'min(max(360px, 30vw), 480px)', maxWidth:'calc(100vw - 40px)', maxHeight:'100%', overflowY:'auto', display:'flex', flexDirection:'column' }}>
+        )}
+        
+        {/* Card - 始终存在，用 visibility 控制显示 */}
+        <Card style={{ 
+          width: collapsed ? 0 : 'min(max(320px, 30vw), 480px)', 
+          maxWidth: collapsed ? 0 : 'calc(100vw - 20px)',
+          maxHeight: collapsed ? 0 : 'calc(100vh - 20px)',
+          overflowY: collapsed ? 'hidden' : 'auto',
+          opacity: collapsed ? 0 : 1,
+          visibility: collapsed ? 'hidden' : 'visible',
+          transition: 'opacity 0.2s ease, width 0.2s ease',
+          display:'flex', 
+          flexDirection:'column',
+          WebkitOverflowScrolling: 'touch',
+          pointerEvents: collapsed ? 'none' : 'auto'
+        }}>
             <CardHeader style={{ flexShrink:0 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
                 <CardTitle>
                   <Sparkles className="h-4 w-4" style={{ color:'#34d399' }} /> Matrix with Depth
                 </CardTitle>
                 <div style={{ display:'flex', gap:8 }}>
-                  <Button variant="ghost" size="icon" onClick={() => setCollapsed(true)}>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => handleToggleCollapse(true)}
+                    style={{ 
+                      touchAction: 'manipulation',
+                      minWidth: '44px',
+                      minHeight: '44px'
+                    }}
+                  >
                     <ChevronsRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -104,6 +158,7 @@ const Panel = (props) => {
                 <LabeledSlider label="Glow" value={uiState.glow} onChange={(v) => updateConfig("glow", v)} min={0} max={0.5} step={0.01} />
                 <LabeledSlider label="Color Hue" value={uiState.colorHue} onChange={(v) => updateConfig("colorHue", v)} min={0} max={360} step={1} />
                 <LabeledSlider label="Depth Strength" value={uiState.depthInfluence} onChange={(v) => updateConfig("depthInfluence", v)} min={0} max={1.5} step={0.05} />
+                
                 <div style={{ display:'grid', gap:10, marginTop:4 }}>
                   <label style={{ fontSize:12, color:'#cbd5e1', fontWeight:600 }}>Depth Map</label>
                   <select
@@ -111,49 +166,151 @@ const Panel = (props) => {
                     value={uiState.depthUrl}
                     onChange={e => updateConfig("depthUrl", e.target.value)}
                   >
+                    <option value="tts-live-face">TTS语音实时面部动画</option>
                     <option value="/depth-map-video.mp4">默认（视频）</option>
                     <option value="/depth-default.png">默认（图片）</option>
-                    <option value="/depth-map-01.png">Map 01</option>
-                    <option value="/depth-map-02.png">Map 02</option>
-                    <option value="/depth-map-03.png">Map 03</option>
-                    <option value="/depth-map-04.png">Map 04</option>
-                    <option value="/depth-map-05.png">Map 05</option>
+                    <option value="/depth-map-01.png">图片 01</option>
+                    <option value="/depth-map-02.png">图片 02</option>
+                    <option value="/depth-map-03.png">图片 03</option>
+                    <option value="/depth-map-04.png">图片 04</option>
+                    <option value="/depth-map-05.png">图片 05</option>
                   </select>
-                  <Input placeholder="Paste Image URL..." value={uiState.depthUrl} onChange={(e) => updateConfig("depthUrl", e.target.value)} style={{ background:'rgba(24,24,27,0.6)', width:'94%'}} />
-                  <div style={{ display:'grid', gap:8 }}>
-                    <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:0.6, fontWeight:700, color:'#90909b' }}>Preview {depthInfo ? `— ${depthInfo}` : ""}</div>
-                    {isTtsDepthActive ? (
-                      <div style={{ fontSize:12, color:'#9ca3af', fontStyle:'italic', padding:12, border:'1px dashed rgba(255,255,255,0.14)', borderRadius:10 }}>Live TTS depth feed</div>
-                    ) : depthPreview ? (
-                      <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'140px', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        {isVideoUrl(depthPreview) ? (
-                          <video
-                            src={depthPreview}
-                            muted
-                            loop
-                            autoPlay
-                            playsInline
-                            style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block' }}
+                  
+                  {isTtsSelected ? (
+                    // TTS控制面板
+                    <div style={{ display:'grid', gap:12, marginTop:8 }}>
+                      {/* 引擎选择 */}
+                      <div style={{ display:'grid', gap:8 }}>
+                        <label style={{ fontSize:12, color:'#cbd5e1', fontWeight:600 }}>TTS 引擎</label>
+                        <select
+                          value={props.ttsEngine}
+                          onChange={(e) => props.onTtsEngineChange(e.target.value)}
+                          style={{ height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(24,24,27,0.6)', color:'#e5e7eb', fontSize:12, padding:'6px 10px' }}
+                        >
+                          <option value="web-speech">Web Speech API (免费，内置)</option>
+                          <option value="elevenlabs">ElevenLabs (高质，需API密钥)</option>
+                        </select>
+                      </div>
+                      
+                      {/* API密钥输入 (ElevenLabs) */}
+                      {props.ttsEngine === 'elevenlabs' && (
+                        <div style={{ display:'grid', gap:8 }}>
+                          <label style={{ fontSize:12, color:'#cbd5e1', fontWeight:600 }}>ElevenLabs API 密钥</label>
+                          <Input
+                            type="password"
+                            value={props.ttsApiKey}
+                            onChange={(e) => props.onTtsApiKeyChange(e.target.value)}
+                            placeholder="sk_..."
+                            style={{ background:'rgba(24,24,27,0.6)', width:'94%' }}
                           />
+                        </div>
+                      )}
+                      
+                      {/* 语言选择 */}
+                      <div style={{ display:'grid', gap:8 }}>
+                        <label style={{ fontSize:12, color:'#cbd5e1', fontWeight:600 }}>语言 / Language</label>
+                        <select
+                          value={props.ttsLanguage}
+                          onChange={(e) => props.onTtsLanguageChange(e.target.value)}
+                          style={{ height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(24,24,27,0.6)', color:'#e5e7eb', fontSize:12, padding:'6px 10px', cursor:'pointer' }}
+                        >
+                          <option value="auto">自动检测 / Auto-detect</option>
+                          <option value="en">English (英文)</option>
+                          <option value="zh">中文 (Chinese)</option>
+                        </select>
+                      </div>
+                      
+                      {/* TTS预览 - 显示底部实例的canvas */}
+                      <div style={{ display:'grid', gap:8 }}>
+                        <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:0.6, fontWeight:700, color:'#90909b' }}>
+                          面部动画预览
+                        </div>
+                        {props.ttsPreviewCanvasRef?.current ? (
+                          <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'140px', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            <canvas
+                              ref={(el) => {
+                                if (el && props.ttsPreviewCanvasRef?.current) {
+                                  // Mirror the source canvas
+                                  el.width = props.ttsPreviewCanvasRef.current.width;
+                                  el.height = props.ttsPreviewCanvasRef.current.height;
+                                  // Set up animation loop to copy canvas content
+                                  const animate = () => {
+                                    if (el && props.ttsPreviewCanvasRef?.current) {
+                                      const ctx = el.getContext('2d');
+                                      if (ctx) {
+                                        ctx.clearRect(0, 0, el.width, el.height);
+                                        ctx.drawImage(props.ttsPreviewCanvasRef.current, 0, 0);
+                                      }
+                                      requestAnimationFrame(animate);
+                                    }
+                                  };
+                                  animate();
+                                }
+                              }}
+                              style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block' }}
+                            />
+                          </div>
                         ) : (
-                          <img src={depthPreview} alt="depth preview" style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block' }} />
+                          <div style={{ fontSize:11, color:'#9ca3af', fontStyle:'italic', padding:12, border:'1px dashed rgba(255,255,255,0.14)', borderRadius:10 }}>
+                            等待TTS初始化...
+                          </div>
                         )}
                       </div>
-                    ) : (
-                      <div style={{ fontSize:12, color:'#9ca3af', fontStyle:'italic', padding:12, border:'1px dashed rgba(255,255,255,0.14)', borderRadius:10 }}>No active depth map</div>
-                    )}
-                  </div>
+                      
+                      {/* 调试信息 */}
+                      <div style={{
+                        padding: 10,
+                        borderRadius: 8,
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        background: 'rgba(24,24,27,0.6)',
+                        fontSize: 11,
+                        color: '#a0a0a8',
+                        fontFamily: 'monospace'
+                      }}>
+                        <div>Viseme: <span style={{ color: '#3b82f6' }}>{props.ttsDebugInfo?.viseme || '-'}</span></div>
+                        <div>Mouth: <span style={{ color: '#10b981' }}>{props.ttsDebugInfo?.mouthOpenness || '-'}</span></div>
+                      </div>
+                    </div>
+                  ) : (
+                    // 传统 Depth Map 控制
+                    <>
+                      <Input 
+                        placeholder="Paste Image URL..." 
+                        value={uiState.depthUrl} 
+                        onChange={(e) => updateConfig("depthUrl", e.target.value)} 
+                        style={{ background:'rgba(24,24,27,0.6)', width:'94%'}} 
+                      />
+                      <div style={{ display:'grid', gap:8 }}>
+                        <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:0.6, fontWeight:700, color:'#90909b' }}>
+                          Preview {depthInfo ? `— ${depthInfo}` : ""}
+                        </div>
+                        {depthPreview ? (
+                          <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'140px', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            {isVideoUrl(depthPreview) ? (
+                              <video
+                                src={depthPreview}
+                                muted
+                                loop
+                                autoPlay
+                                playsInline
+                                style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block' }}
+                              />
+                            ) : (
+                              <img src={depthPreview} alt="depth preview" style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block' }} />
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize:12, color:'#9ca3af', fontStyle:'italic', padding:12, border:'1px dashed rgba(255,255,255,0.14)', borderRadius:10 }}>
+                            No active depth map
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
-
-              {/* TTS Lip Sync Controls - Integrated */}
-              <div id="tts-panel" style={{ marginTop:16, paddingTop:16, borderTop:'1px solid rgba(255,255,255,0.08)' }}>
-                <div style={{ fontSize:11, fontWeight:600, color:'#a1a1aa', marginBottom:12, letterSpacing:'0.5px' }}>🎤 TTS LIP SYNC</div>
-                <TTSCharacterPanel onDepthCanvasReady={props.onDepthCanvasReady} isEmbedded={true} />
               </div>
             </CardContent>
           </Card>
-        )}
       </div>
     </div>
   );
@@ -161,24 +318,32 @@ const Panel = (props) => {
 
 // Core constants
 const DEFAULT_GLYPHS = "舍利子色不异空即是受想行识亦复如是诸法相生灭垢淨增减故中无眼耳鼻舌身意声香味触法界乃至明尽老死苦集道智得以菩提萨埵依般若波罗蜜多心罣碍有恐怖远离颠倒梦想究竟涅槃三世诸佛得阿耨多罗三藐大知神咒明上等能除一切真实虚说曰揭谛波罗僧萨婆诃";
-const DEFAULT_DEPTH_URL = "/depth-map-video.mp4";
+const DEFAULT_DEPTH_URL = "tts-live-face";
 const MAX_SEGMENTS = 3;
 
 function clamp(v, a = 0, b = 1) { return Math.max(a, Math.min(b, v)); }
 const DEPTH_LUT = new Float32Array(256);
 for (let i = 0; i < 256; i++) { const x = i / 255; const shifted = (x - 0.5) * 1.6; let y = clamp(0.5 + shifted, 0, 1); if (y >= 0.5) { y = 0.5 + Math.pow(y - 0.5, 0.7); } else { y = 0.5 - Math.pow(0.5 - y, 0.7); } DEPTH_LUT[i] = clamp(y, 0, 1); }
 function hash32(a) { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
-function fitCanvas(canvas, aspect = 1) { const ratio = Math.min(window.devicePixelRatio || 1, 2); const parent = canvas.parentElement; if (!parent) return; const bounds = parent.getBoundingClientRect(); const W = Math.max(1, Math.floor(bounds.width)); const H = Math.max(1, Math.floor(bounds.height));
-  // Maintain source aspect ratio (fallback to 1:1)
-  const safeAspect = Math.max(0.1, Math.min(10, aspect || 1));
-  let drawW = W;
-  let drawH = Math.round(W / safeAspect);
-  if (drawH > H) {
-    drawH = H;
-    drawW = Math.round(H * safeAspect);
+function fitCanvas(canvas, aspect = 1) { 
+  const ratio = Math.min(window.devicePixelRatio || 1, 2); 
+  const parent = canvas.parentElement; 
+  if (!parent) return; 
+  const bounds = parent.getBoundingClientRect(); 
+  const W = Math.max(1, Math.floor(bounds.width)); 
+  const H = Math.max(1, Math.floor(bounds.height));
+  
+  // Always fill the entire viewport (no aspect ratio constraint)
+  const targetW = Math.floor(W * ratio); 
+  const targetH = Math.floor(H * ratio);
+  if (canvas.width !== targetW || canvas.height !== targetH) { 
+    canvas.style.width = `${W}px`; 
+    canvas.style.height = `${H}px`; 
+    canvas.width = targetW; 
+    canvas.height = targetH; 
+    const ctx = canvas.getContext("2d"); 
+    if (ctx) ctx.setTransform(ratio, 0, 0, ratio, 0, 0); 
   }
-  const targetW = Math.floor(drawW * ratio); const targetH = Math.floor(drawH * ratio);
-  if (canvas.width !== targetW || canvas.height !== targetH) { canvas.style.width = `${drawW}px`; canvas.style.height = `${drawH}px`; canvas.width = targetW; canvas.height = targetH; const ctx = canvas.getContext("2d"); if (ctx) ctx.setTransform(ratio, 0, 0, ratio, 0, 0); }
 }
 
 function hueToRGB(h) {
@@ -223,7 +388,7 @@ function extractGlyphTextFromGemini(data) {
   return null;
 }
 
-const DEFAULT_CONFIG = { speed: 6, density: 1, fontSize: 16, glow: 0.1, trail: 1, persistence: 0.65, glyphSpeed: 0.5, depthInfluence: 0.25, glyphs: DEFAULT_GLYPHS, depthUrl: DEFAULT_DEPTH_URL, colorHue: 140 };
+const DEFAULT_CONFIG = { speed: 10, density: 1.8, fontSize: 12, glow: 0, trail: 1.2, persistence: 0, glyphSpeed: 0.1, depthInfluence: 0.6, glyphs: DEFAULT_GLYPHS, depthUrl: DEFAULT_DEPTH_URL, colorHue: Math.random() * 360 };
 
 export default function MatrixAI() {
   const canvasRef = useRef(null);
@@ -239,6 +404,13 @@ export default function MatrixAI() {
   const configRef = useRef({ ...DEFAULT_CONFIG });
   const [uiState, setUiState] = useState({ ...DEFAULT_CONFIG });
   const updateConfig = (key, value) => { const next = { ...configRef.current, [key]: value }; configRef.current = next; setUiState(next); };
+
+  // TTS state for main panel controls
+  const [ttsEngine, setTtsEngine] = useState('web-speech');
+  const [ttsLanguage, setTtsLanguage] = useState('auto');
+  const [ttsApiKey, setTtsApiKey] = useState('');
+  const [ttsDebugInfo, setTtsDebugInfo] = useState({ viseme: '-', mouthOpenness: '-' });
+  const ttsPreviewCanvasRef = useRef(null); // Reference to TTS canvas for main panel preview
 
   // 移除 AI 生成区域（按需求暂不显示）
 
@@ -324,21 +496,32 @@ export default function MatrixAI() {
     const canvas = canvasRef.current;
     const sourceCanvas = ttsDepthCanvasRef.current;
     if (!canvas || !sourceCanvas) return;
+    
     const sw = sourceCanvas.width || sourceCanvas.clientWidth || 0;
     const sh = sourceCanvas.height || sourceCanvas.clientHeight || 0;
     if (sw && sh) {
       depthAspectRef.current = sw / sh;
       fitCanvas(canvas, depthAspectRef.current);
     }
+    
+    // Depth map size: 90% of canvas, top-aligned, centered
     const cw = canvas.clientWidth;
     const ch = canvas.clientHeight;
     if (!cw || !ch) return;
+    
+    const depthMapHeight = Math.floor(ch * 0.9);
+    const depthMapWidth = Math.floor(depthMapHeight * (sw / sh));
+    const offsetX = Math.floor((cw - depthMapWidth) / 2);
+    const offsetY = 0; // top-aligned
+    
     const off = ensureOffscreen(cw, ch);
     const g = off.getContext('2d', { willReadFrequently: true });
     if (!g) return;
+    
     g.fillStyle = '#000';
     g.fillRect(0, 0, cw, ch);
-    g.drawImage(sourceCanvas, 0, 0, cw, ch);
+    g.drawImage(sourceCanvas, offsetX, offsetY, depthMapWidth, depthMapHeight);
+    
     try {
       const imageData = g.getImageData(0, 0, cw, ch);
       const data = imageData.data;
@@ -443,12 +626,33 @@ export default function MatrixAI() {
   // 生成逻辑已移除
 
   useEffect(() => {
-    if (isTtsDepthActive) {
+    // 检查是否选择了 TTS 模式
+    const isTtsMode = uiState.depthUrl === 'tts-live-face';
+    
+    if (isTtsMode) {
+      // TTS 模式：清理图片/视频资源，等待 TTS canvas 回调
       depthImageEl.current = null;
       depthVideoEl.current = null;
+      // 如果还没有 TTS canvas，暂时清空 depth data
+      if (!isTtsDepthActiveRef.current) {
+        depthLumaRef.current = null;
+        setDepthPreview(null);
+        setDepthInfo('Waiting for TTS...');
+      }
       return () => {};
     }
-    let cancelled = false; const url = uiState.depthUrl; if (!url) return;
+    
+    // 非 TTS 模式：清理 TTS 资源，加载图片/视频
+    if (isTtsDepthActiveRef.current) {
+      isTtsDepthActiveRef.current = false;
+      setIsTtsDepthActive(false);
+      ttsDepthCanvasRef.current = null;
+    }
+    
+    let cancelled = false; 
+    const url = uiState.depthUrl; 
+    if (!url) return;
+    
     if (isVideoUrl(url)) {
       depthImageEl.current = null;
       const vid = document.createElement("video");
@@ -494,7 +698,7 @@ export default function MatrixAI() {
     };
     tryLoad(url);
     return () => { cancelled = true; };
-  }, [uiState.depthUrl, resampleFromImage, resampleFromVideo, isTtsDepthActive]);
+  }, [uiState.depthUrl, resampleFromImage, resampleFromVideo]);
 
   useEffect(() => {
     const onResize = () => {
@@ -549,12 +753,52 @@ export default function MatrixAI() {
     return () => cancelAnimationFrame(rafId);
   }, [running, draw, resampleFromCanvas, resampleFromVideo]);
 
+  // No minimize state needed - always show compact version at bottom
+
   return (
-    <div style={{ position:'relative', width:'100%', height:'100vh', background:'#0b0b0f', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <canvas ref={canvasRef} style={{ display:'block', maxWidth:'100%', maxHeight:'100%' }} />
-      <div style={{ position:'absolute', top:10, left:12, color:'#a7f3d0', fontSize:12, background:'rgba(6,6,8,0.5)', border:'1px solid rgba(255,255,255,0.10)', padding:'6px 8px', borderRadius:8 }}>
+    <div style={{ position:'relative', width:'100%', height:'100vh', background:'#0b0b0f', overflow:'hidden' }}>
+      {/* Full-screen Matrix Canvas */}
+      <canvas ref={canvasRef} style={{ display:'block', width:'100%', height:'100%' }} />
+      
+      {/* FPS Counter */}
+      <div style={{ position:'absolute', top:10, left:12, color:'#a7f3d0', fontSize:12, background:'rgba(6,6,8,0.5)', border:'1px solid rgba(255,255,255,0.10)', padding:'6px 8px', borderRadius:8, zIndex:5 }}>
         FPS: {fps}
       </div>
+      
+      {/* TTS Compact Panel - Always shown at bottom when TTS mode active */}
+      {uiState.depthUrl === 'tts-live-face' && (
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'min(810px, 81vw)',
+          padding: '12px 16px',
+          backgroundColor: 'transparent',
+          backdropFilter: 'blur(12px)',
+          borderRadius: '14px 14px 0 0',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderBottom: 'none',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.5)',
+          zIndex: 15,
+          pointerEvents: 'auto'
+        }}>
+          <TTSCharacterPanel 
+            onDepthCanvasReady={handleDepthCanvasReady} 
+            isEmbedded={true}
+            isCompact={true}
+            ttsEngine={ttsEngine}
+            ttsLanguage={ttsLanguage}
+            apiKey={ttsApiKey}
+            onEngineChange={setTtsEngine}
+            onLanguageChange={setTtsLanguage}
+            onApiKeyChange={setTtsApiKey}
+            onCanvasRefReady={(canvasRef) => { ttsPreviewCanvasRef.current = canvasRef; }}
+            onDebugInfoUpdate={setTtsDebugInfo}
+          />
+        </div>
+      )}
+      
       <Panel
         running={running}
         setRunning={setRunning}
@@ -568,6 +812,14 @@ export default function MatrixAI() {
         collapsed={collapsed}
         setCollapsed={setCollapsed}
         onDepthCanvasReady={handleDepthCanvasReady}
+        ttsEngine={ttsEngine}
+        ttsLanguage={ttsLanguage}
+        ttsApiKey={ttsApiKey}
+        onTtsEngineChange={setTtsEngine}
+        onTtsLanguageChange={setTtsLanguage}
+        onTtsApiKeyChange={setTtsApiKey}
+        ttsPreviewCanvasRef={ttsPreviewCanvasRef}
+        ttsDebugInfo={ttsDebugInfo}
       />
     </div>
   );
