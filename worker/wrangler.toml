@@ -1,10 +1,9 @@
-name = "aiaistream-matrix"
+name = "aiaistream-tts-logger"
+main = "src/index.js"
 compatibility_date = "2024-12-01"
-pages_build_output_dir = "out"
 
-# Cloudflare Pages Functions configuration
 [env.production]
-name = "aiaistream-matrix"
+name = "aiaistream-tts-logger-production"
 
 [[env.production.kv_namespaces]]
 binding = "TTS_LOGS"

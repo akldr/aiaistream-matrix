@@ -1,11 +1,36 @@
 /**
- * Cloudflare Pages Function for TTS Log Persistence
+ * Standalone Cloudflare Worker for TTS Log Persistence
  * Handles POST requests to /api/tts-log and stores logs in KV storage
  */
 
-export async function onRequestPost(context) {
-  const { request, env } = context;
+export default {
+  async fetch(request, env, ctx) {
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        },
+      });
+    }
 
+    const url = new URL(request.url);
+
+    // Handle TTS logging endpoint
+    if (url.pathname === '/api/tts-log' && request.method === 'POST') {
+      return handleTTSLog(request, env);
+    }
+
+    return new Response('Not Found', { status: 404 });
+  },
+};
+
+/**
+ * Handle TTS log persistence to KV storage
+ */
+async function handleTTSLog(request, env) {
   try {
     const data = await request.json();
     const { text, engine, language, timestamp } = data;
@@ -13,13 +38,15 @@ export async function onRequestPost(context) {
     if (!text) {
       return new Response(JSON.stringify({ error: 'Missing text field' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
       });
     }
 
     // Check if KV is available
     if (!env.TTS_LOGS) {
-      // KV not configured - just acknowledge the log
       console.log('TTS Log (KV not configured):', {
         timestamp: timestamp || new Date().toISOString(),
         engine: engine || 'unknown',
@@ -31,11 +58,13 @@ export async function onRequestPost(context) {
         JSON.stringify({
           success: true,
           message: 'Log received (KV storage not configured)',
-          note: 'Configure KV namespace in wrangler.toml to enable persistence'
         }),
         {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
         }
       );
     }
@@ -45,7 +74,7 @@ export async function onRequestPost(context) {
       timestamp: timestamp || new Date().toISOString(),
       engine: engine || 'unknown',
       language: language || 'unknown',
-      text: text.substring(0, 300), // Limit to 300 chars
+      text: text.substring(0, 300),
     };
 
     // Get today's date for KV key
@@ -61,7 +90,6 @@ export async function onRequestPost(context) {
         logs = JSON.parse(existing);
       }
     } catch (e) {
-      // New log file
       logs = [];
     }
 
@@ -86,7 +114,10 @@ export async function onRequestPost(context) {
       }),
       {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
       }
     );
   } catch (error) {
@@ -95,7 +126,10 @@ export async function onRequestPost(context) {
       JSON.stringify({ error: 'Failed to process log', details: error.message }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
       }
     );
   }
