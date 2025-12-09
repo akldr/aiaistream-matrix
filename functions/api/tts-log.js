@@ -1,26 +1,11 @@
 /**
- * Cloudflare Worker for TTS Log Persistence
+ * Cloudflare Pages Function for TTS Log Persistence
  * Handles POST requests to /api/tts-log and stores logs in KV storage
  */
 
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
+export async function onRequestPost(context) {
+  const { request, env } = context;
 
-    // Handle TTS logging endpoint
-    if (url.pathname === '/api/tts-log' && request.method === 'POST') {
-      return handleTTSLog(request, env);
-    }
-
-    // Pass through to Pages
-    return env.ASSETS.fetch(request);
-  },
-};
-
-/**
- * Handle TTS log persistence to KV storage
- */
-async function handleTTSLog(request, env) {
   try {
     const data = await request.json();
     const { text, engine, language, timestamp } = data;
