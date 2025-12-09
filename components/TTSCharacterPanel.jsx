@@ -53,11 +53,33 @@ const TTSCharacterPanel = ({
   const speechSynthesizerRef = useRef(null);
   const animationFrameRef = useRef(null);
   const playbackIntervalRef = useRef(null);
+  const lastLoggedTextRef = useRef(''); // 记录上次已 log 的文本
+  const logDebounceRef = useRef(null); // 日志去抖
+  const audioContextRef = useRef(null); // 预热的音频上下文
 
   /**
    * Initialize components on mount
    */
   useEffect(() => {
+    // 预热音频上下文（iOS兼容性）
+    try {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) { /* ignore */ }
+
+    // 预热语音引擎，提前加载 voices，减少首次延迟
+    try {
+      const synth = window.speechSynthesis;
+      if (synth) {
+        const voices = synth.getVoices();
+        if (!voices || voices.length === 0) {
+          synth.onvoiceschanged = () => {
+            synth.getVoices();
+            synth.onvoiceschanged = null;
+          };
+        }
+      }
+    } catch (e) { /* ignore */ }
+
     // 确保 Canvas 有正确的尺寸后再初始化
     const initTimer = setTimeout(() => {
       const initializeComponents = async () => {
@@ -174,6 +196,9 @@ const TTSCharacterPanel = ({
         clearInterval(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
       }
+      if (audioContextRef.current) {
+        try { audioContextRef.current.close(); } catch (e) { /* ignore */ }
+      }
       if (faceModelRef.current) {
         faceModelRef.current.destroy();
         faceModelRef.current = null;
@@ -219,16 +244,37 @@ const TTSCharacterPanel = ({
   /**
    * 将 TTS 文本按日期写入服务器日志
    */
-  const logToServer = useCallback(async (text) => {
+  const logToServer = useCallback((text) => {
     const trimmed = text.trim().slice(0, 300);
     if (!trimmed) return;
+    if (lastLoggedTextRef.current === trimmed) return;
     try {
-      const apiEndpoint = process.env.NEXT_PUBLIC_TTS_API_ENDPOINT || '/api/tts-log';
-      await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: trimmed })
-      });
+      lastLoggedTextRef.current = trimmed;
+
+      // 去抖 200ms，避免连续点击多次 log
+      if (logDebounceRef.current) {
+        clearTimeout(logDebounceRef.current);
+      }
+
+      logDebounceRef.current = setTimeout(() => {
+        try {
+          const apiEndpoint = process.env.NEXT_PUBLIC_TTS_API_ENDPOINT || '/api/tts-log';
+          const payload = JSON.stringify({ text: trimmed });
+          if (navigator.sendBeacon) {
+            const blob = new Blob([payload], { type: 'application/json' });
+            navigator.sendBeacon(apiEndpoint, blob);
+          } else {
+            fetch(apiEndpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: payload,
+              credentials: 'omit'
+            });
+          }
+        } catch (err) {
+          // Log persistence failed - silently continue
+        }
+      }, 200);
     } catch (err) {
       // Log persistence failed - silently continue
     }
@@ -238,6 +284,14 @@ const TTSCharacterPanel = ({
    * 处理 TTS 合成和播放 - 实时动画
    */
   const handleSpeak = useCallback(async () => {
+    // 恢复已预热的音频上下文，避免 iOS 静音阻塞
+    try {
+      const ctx = audioContextRef.current;
+      if (ctx && ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+    } catch (e) { /* ignore */ }
+
     if (!ttsText.trim()) {
       alert('请输入要合成的文本');
       return;
@@ -259,7 +313,7 @@ const TTSCharacterPanel = ({
     }
 
     try {
-      await logToServer(ttsText);
+      logToServer(ttsText);
       if (playbackIntervalRef.current) {
         clearInterval(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
