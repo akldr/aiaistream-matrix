@@ -1,3 +1,16 @@
 name = "aiaistream-matrix"
+type = "javascript"
+account_id = ""
+workers_dev = true
+route = ""
+zone_id = ""
 pages_build_output_dir = "out"
 compatibility_date = "2024-12-01"
+
+[env.production]
+vars = { ENVIRONMENT = "production" }
+
+[[kv_namespaces]]
+binding = "TTS_LOGS"
+id = "your_kv_namespace_id"
+preview_id = "your_kv_namespace_preview_id"
