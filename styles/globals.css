@@ -16,15 +16,3 @@ code {
   border-radius: 4px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace;
 }
-
-/* Spinner animation for TTS synthesizing state */
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Pulse animation for synthesizing button */
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-

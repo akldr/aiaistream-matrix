@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Play, Pause, Sparkles, RotateCcw, Download, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp } from "lucide-react";
+import { Play, Pause, Sparkles, RotateCcw, Download, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp, Github } from "lucide-react";
 import TTSCharacterPanel from "./TTSCharacterPanel";
 
 // 轻量 UI 组件（纯 JSX，无 TS 类型）
@@ -59,37 +59,33 @@ function isVideoUrl(url) {
 
 // 抽出独立 Panel 组件
 const Panel = (props) => {
-  const { running, setRunning, onReset, onDownload, uiState, updateConfig, depthPreview, depthInfo, collapsed, setCollapsed, isTtsDepthActive, onDepthCanvasReady, ttsEngine, ttsLanguage, ttsApiKey, onTtsEngineChange, onTtsLanguageChange, onTtsApiKeyChange, ttsPreviewCanvasRef, ttsDebugInfo, mobileLayout = false } = props;
+  const { running, setRunning, onReset, onDownload, uiState, updateConfig, depthPreview, depthInfo, collapsed, setCollapsed, isTtsDepthActive, onDepthCanvasReady } = props;
   
   // 安全的折叠切换，防止影响TTS播放
   const handleToggleCollapse = useCallback((shouldCollapse) => {
     // 只改变UI状态，不影响TTS引擎
-    if (!mobileLayout) {
-      setCollapsed(shouldCollapse);
-    }
-  }, [setCollapsed, mobileLayout]);
+    setCollapsed(shouldCollapse);
+  }, [setCollapsed]);
   
   // Check if current selection is TTS
   const isTtsSelected = uiState.depthUrl === 'tts-live-face';
-  const isCollapsed = mobileLayout ? false : collapsed;
   
   return (
     <div style={{ 
-      position: mobileLayout ? 'relative' : 'absolute', 
-      top: mobileLayout ? 'auto' : 'clamp(10px, 2vh, 20px)', 
-      right: mobileLayout ? 'auto' : 'clamp(10px, 2vw, 20px)', 
-      bottom: mobileLayout ? 'auto' : 'clamp(10px, 2vh, 20px)', 
-      zIndex: mobileLayout ? 5 : 20, 
+      position:'absolute', 
+      top: 'clamp(10px, 2vh, 20px)', 
+      right: 'clamp(10px, 2vw, 20px)', 
+      bottom: 'clamp(10px, 2vh, 20px)', 
+      zIndex:20, 
       display:'flex', 
       flexDirection:'column', 
-      alignItems: mobileLayout ? 'stretch' : 'flex-end', 
-      pointerEvents: mobileLayout ? 'auto' : 'none',
-      maxWidth: mobileLayout ? '100%' : 'calc(100vw - 20px)',
-      width: mobileLayout ? '100%' : 'auto'
+      alignItems:'flex-end', 
+      pointerEvents:'none',
+      maxWidth: 'calc(100vw - 20px)'
     }}>
-      <div style={{ pointerEvents:'auto', display:'flex', flexDirection:'column', alignItems: mobileLayout ? 'stretch' : 'flex-end', gap:10, maxHeight: mobileLayout ? 'none' : '100%', width: mobileLayout ? '100%' : 'auto' }}>
+      <div style={{ pointerEvents:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10, maxHeight:'100%' }}>
         {/* 折叠按钮 - 仅在折叠时显示 */}
-        {!mobileLayout && isCollapsed && (
+        {collapsed && (
           <Button 
             variant="secondary" 
             size="icon" 
@@ -106,39 +102,37 @@ const Panel = (props) => {
         
         {/* Card - 始终存在，用 visibility 控制显示 */}
         <Card style={{ 
-          width: isCollapsed ? 0 : mobileLayout ? '100%' : 'min(max(320px, 30vw), 480px)', 
-          maxWidth: isCollapsed ? 0 : mobileLayout ? '100%' : 'calc(100vw - 20px)',
-          maxHeight: isCollapsed ? 0 : mobileLayout ? 'none' : 'calc(100vh - 20px)',
-          overflowY: isCollapsed ? 'hidden' : 'auto',
-          opacity: isCollapsed ? 0 : 1,
-          visibility: isCollapsed ? 'hidden' : 'visible',
-          transition: mobileLayout ? 'opacity 0.15s ease' : 'opacity 0.2s ease, width 0.2s ease',
+          width: collapsed ? 0 : 'min(max(320px, 30vw), 480px)', 
+          maxWidth: collapsed ? 0 : 'calc(100vw - 20px)',
+          maxHeight: collapsed ? 0 : 'calc(100vh - 20px)',
+          overflowY: collapsed ? 'hidden' : 'auto',
+          opacity: collapsed ? 0 : 1,
+          visibility: collapsed ? 'hidden' : 'visible',
+          transition: 'opacity 0.2s ease, width 0.2s ease',
           display:'flex', 
           flexDirection:'column',
           WebkitOverflowScrolling: 'touch',
-          pointerEvents: isCollapsed ? 'none' : 'auto'
+          pointerEvents: collapsed ? 'none' : 'auto'
         }}>
             <CardHeader style={{ flexShrink:0 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
                 <CardTitle>
                   <Sparkles className="h-4 w-4" style={{ color:'#34d399' }} /> Matrix with Depth
                 </CardTitle>
-                {!mobileLayout && (
-                  <div style={{ display:'flex', gap:8 }}>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => handleToggleCollapse(true)}
-                      style={{ 
-                        touchAction: 'manipulation',
-                        minWidth: '44px',
-                        minHeight: '44px'
-                      }}
-                    >
-                      <ChevronsRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
+                <div style={{ display:'flex', gap:8 }}>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => handleToggleCollapse(true)}
+                    style={{ 
+                      touchAction: 'manipulation',
+                      minWidth: '44px',
+                      minHeight: '44px'
+                    }}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               {/* API key input removed */}
               <div style={{ display:'flex', gap:10, marginTop:10 }}>
@@ -156,12 +150,9 @@ const Panel = (props) => {
             <CardContent>
               <div style={{ display:'grid', gap:14 }}>
                 <LabeledSlider label="Fall Speed" value={uiState.speed} onChange={(v) => updateConfig("speed", v)} min={0.5} max={8} step={0.1} />
-                <LabeledSlider label="Density" value={uiState.density} onChange={(v) => updateConfig("density", v)} min={0.3} max={1.8} step={0.05} />
                 <LabeledSlider label="Trail Length" value={uiState.trail} onChange={(v) => updateConfig("trail", v)} min={0} max={1.5} step={0.05} />
                 <LabeledSlider label="Trail Persist" value={uiState.persistence} onChange={(v) => updateConfig("persistence", v)} min={0} max={1} step={0.01} />
-                <LabeledSlider label="Glyph Cycle" value={uiState.glyphSpeed} onChange={(v) => updateConfig("glyphSpeed", v)} min={0.1} max={1.5} step={0.05} />
-                <LabeledSlider label="Font Size" value={uiState.fontSize} onChange={(v) => updateConfig("fontSize", v)} min={10} max={26} step={1} />
-                <LabeledSlider label="Glow" value={uiState.glow} onChange={(v) => updateConfig("glow", v)} min={0} max={0.5} step={0.01} />
+                <LabeledSlider label="Font Size" value={uiState.fontSize} onChange={(v) => updateConfig("fontSize", v)} min={11} max={21} step={1} />
                 <LabeledSlider label="Color Hue" value={uiState.colorHue} onChange={(v) => updateConfig("colorHue", v)} min={0} max={360} step={1} />
                 <LabeledSlider label="Depth Strength" value={uiState.depthInfluence} onChange={(v) => updateConfig("depthInfluence", v)} min={0} max={1.5} step={0.05} />
                 
@@ -172,7 +163,6 @@ const Panel = (props) => {
                     value={uiState.depthUrl}
                     onChange={e => updateConfig("depthUrl", e.target.value)}
                   >
-                    <option value="tts-live-face">TTS语音实时面部动画</option>
                     <option value="/depth-map-video.mp4">默认（视频）</option>
                     <option value="/depth-default.png">默认（图片）</option>
                     <option value="/depth-map-01.png">图片 01</option>
@@ -180,6 +170,7 @@ const Panel = (props) => {
                     <option value="/depth-map-03.png">图片 03</option>
                     <option value="/depth-map-04.png">图片 04</option>
                     <option value="/depth-map-05.png">图片 05</option>
+                    <option value="tts-live-face">TTS语音实时面部动画</option>
                   </select>
                   
                   {isTtsSelected ? (
@@ -228,11 +219,11 @@ const Panel = (props) => {
                       
                       {/* TTS预览 - 显示底部实例的canvas */}
                       <div style={{ display:'grid', gap:8 }}>
-                          <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:0.6, fontWeight:700, color:'#90909b' }}>
+                        <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:0.6, fontWeight:700, color:'#90909b' }}>
                           面部动画预览
                         </div>
                         {props.ttsPreviewCanvasRef?.current ? (
-                          <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'320px', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'140px', display:'flex', alignItems:'center', justifyContent:'center' }}>
                             <canvas
                               ref={(el) => {
                                 if (el && props.ttsPreviewCanvasRef?.current) {
@@ -291,7 +282,7 @@ const Panel = (props) => {
                           Preview {depthInfo ? `— ${depthInfo}` : ""}
                         </div>
                         {depthPreview ? (
-                          <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'180px', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'256px', display:'flex', alignItems:'center', justifyContent:'center' }}>
                             {isVideoUrl(depthPreview) ? (
                               <video
                                 src={depthPreview}
@@ -324,32 +315,24 @@ const Panel = (props) => {
 
 // Core constants
 const DEFAULT_GLYPHS = "舍利子色不异空即是受想行识亦复如是诸法相生灭垢淨增减故中无眼耳鼻舌身意声香味触法界乃至明尽老死苦集道智得以菩提萨埵依般若波罗蜜多心罣碍有恐怖远离颠倒梦想究竟涅槃三世诸佛得阿耨多罗三藐大知神咒明上等能除一切真实虚说曰揭谛波罗僧萨婆诃";
-const DEFAULT_DEPTH_URL = "tts-live-face";
-const MAX_SEGMENTS = 3;
+const DEFAULT_DEPTH_URL = "/depth-map-video.mp4";
+const MAX_SEGMENTS = 6;
 
 function clamp(v, a = 0, b = 1) { return Math.max(a, Math.min(b, v)); }
 const DEPTH_LUT = new Float32Array(256);
 for (let i = 0; i < 256; i++) { const x = i / 255; const shifted = (x - 0.5) * 1.6; let y = clamp(0.5 + shifted, 0, 1); if (y >= 0.5) { y = 0.5 + Math.pow(y - 0.5, 0.7); } else { y = 0.5 - Math.pow(0.5 - y, 0.7); } DEPTH_LUT[i] = clamp(y, 0, 1); }
 function hash32(a) { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
-function fitCanvas(canvas, aspect = 1) { 
-  const ratio = Math.min(window.devicePixelRatio || 1, 2); 
-  const parent = canvas.parentElement; 
-  if (!parent) return; 
-  const bounds = parent.getBoundingClientRect(); 
-  const W = Math.max(1, Math.floor(bounds.width)); 
-  const H = Math.max(1, Math.floor(bounds.height));
-  
-  // Always fill the entire viewport (no aspect ratio constraint)
-  const targetW = Math.floor(W * ratio); 
-  const targetH = Math.floor(H * ratio);
-  if (canvas.width !== targetW || canvas.height !== targetH) { 
-    canvas.style.width = `${W}px`; 
-    canvas.style.height = `${H}px`; 
-    canvas.width = targetW; 
-    canvas.height = targetH; 
-    const ctx = canvas.getContext("2d"); 
-    if (ctx) ctx.setTransform(ratio, 0, 0, ratio, 0, 0); 
+function fitCanvas(canvas, aspect = 1) { const ratio = Math.min(window.devicePixelRatio || 1, 2); const parent = canvas.parentElement; if (!parent) return; const bounds = parent.getBoundingClientRect(); const W = Math.max(1, Math.floor(bounds.width)); const H = Math.max(1, Math.floor(bounds.height));
+  // Maintain source aspect ratio (fallback to 1:1)
+  const safeAspect = Math.max(0.1, Math.min(10, aspect || 1));
+  let drawW = W;
+  let drawH = Math.round(W / safeAspect);
+  if (drawH > H) {
+    drawH = H;
+    drawW = Math.round(H * safeAspect);
   }
+  const targetW = Math.floor(drawW * ratio); const targetH = Math.floor(drawH * ratio);
+  if (canvas.width !== targetW || canvas.height !== targetH) { canvas.style.width = `${drawW}px`; canvas.style.height = `${drawH}px`; canvas.width = targetW; canvas.height = targetH; const ctx = canvas.getContext("2d"); if (ctx) ctx.setTransform(ratio, 0, 0, ratio, 0, 0); }
 }
 
 function hueToRGB(h) {
@@ -394,7 +377,7 @@ function extractGlyphTextFromGemini(data) {
   return null;
 }
 
-const DEFAULT_CONFIG = { speed: 10, density: 1.8, fontSize: 12, glow: 0, trail: 1.2, persistence: 0, glyphSpeed: 0.1, depthInfluence: 0.6, glyphs: DEFAULT_GLYPHS, depthUrl: DEFAULT_DEPTH_URL, colorHue: Math.random() * 360 };
+const DEFAULT_CONFIG = { speed: 8, fontSize: 11, trail: 1.8, persistence: 0.45, depthInfluence: 0.6, glyphs: DEFAULT_GLYPHS, depthUrl: DEFAULT_DEPTH_URL, colorHue: Math.random() * 360 };
 
 export default function MatrixAI() {
   const canvasRef = useRef(null);
@@ -417,20 +400,6 @@ export default function MatrixAI() {
   const [ttsApiKey, setTtsApiKey] = useState('');
   const [ttsDebugInfo, setTtsDebugInfo] = useState({ viseme: '-', mouthOpenness: '-' });
   const ttsPreviewCanvasRef = useRef(null); // Reference to TTS canvas for main panel preview
-
-  // 设备检测：移动端使用专用布局
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const detect = () => {
-      const ua = navigator.userAgent || '';
-      const uaMobile = /iPhone|iPad|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-      const smallScreen = typeof window !== 'undefined' ? window.innerWidth <= 900 : false;
-      setIsMobile(uaMobile || smallScreen);
-    };
-    detect();
-    window.addEventListener('resize', detect);
-    return () => window.removeEventListener('resize', detect);
-  }, []);
 
   // 移除 AI 生成区域（按需求暂不显示）
 
@@ -468,6 +437,8 @@ export default function MatrixAI() {
   const segSpeedRef = useRef(null);
   const segCountRef = useRef(null);
   const colSeedRef = useRef(null);
+  const colFontScaleRef = useRef(null); // 每列的随机字体大小缩放
+  const colSpeedScaleRef = useRef(null); // 每列的随机速度缩放
 
   const lastTimeRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
   const tickRef = useRef(0);
@@ -516,32 +487,21 @@ export default function MatrixAI() {
     const canvas = canvasRef.current;
     const sourceCanvas = ttsDepthCanvasRef.current;
     if (!canvas || !sourceCanvas) return;
-    
     const sw = sourceCanvas.width || sourceCanvas.clientWidth || 0;
     const sh = sourceCanvas.height || sourceCanvas.clientHeight || 0;
     if (sw && sh) {
       depthAspectRef.current = sw / sh;
       fitCanvas(canvas, depthAspectRef.current);
     }
-    
-    // Depth map size: 90% of canvas, top-aligned, centered
     const cw = canvas.clientWidth;
     const ch = canvas.clientHeight;
     if (!cw || !ch) return;
-    
-    const depthMapHeight = Math.floor(ch * 0.9);
-    const depthMapWidth = Math.floor(depthMapHeight * (sw / sh));
-    const offsetX = Math.floor((cw - depthMapWidth) / 2);
-    const offsetY = 0; // top-aligned
-    
     const off = ensureOffscreen(cw, ch);
     const g = off.getContext('2d', { willReadFrequently: true });
     if (!g) return;
-    
     g.fillStyle = '#000';
     g.fillRect(0, 0, cw, ch);
-    g.drawImage(sourceCanvas, offsetX, offsetY, depthMapWidth, depthMapHeight);
-    
+    g.drawImage(sourceCanvas, 0, 0, cw, ch);
     try {
       const imageData = g.getImageData(0, 0, cw, ch);
       const data = imageData.data;
@@ -555,7 +515,7 @@ export default function MatrixAI() {
       depthLumaRef.current = luma;
       depthDimsRef.current = { w: cw, h: ch };
     } catch (e) {
-      // Canvas resample failed - continue with default depth
+      console.warn('tts canvas resample failed', e);
       depthLumaRef.current = null;
     }
   }, [ensureOffscreen]);
@@ -566,38 +526,43 @@ export default function MatrixAI() {
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current; if (!canvas) return; const ctx = canvas.getContext("2d"); if (!ctx) return;
+    
+    // ===== 性能优化：缓存变量 =====
+    let lastFontSize = -1;
+    let lastFontStr = '';
+    let lastHeadAlphaStr = '';
+    let lastTailColorKey = '';
+    
     const W = canvas.clientWidth; const H = canvas.clientHeight;
-    const cfg = configRef.current; const speed = cfg.speed; const density = cfg.density; const fontSize = cfg.fontSize; const glow = cfg.glow; const trail = cfg.trail; const persistence = cfg.persistence; const depthInfluence = cfg.depthInfluence; const glyphs = cfg.glyphs;
+    const cfg = configRef.current; const speed = cfg.speed; const fontSize = cfg.fontSize; const trail = cfg.trail; const persistence = cfg.persistence; const depthInfluence = cfg.depthInfluence; const glyphs = cfg.glyphs;
 
     const colsNeeded = Math.max(1, Math.floor(W / Math.max(8, fontSize)));
     if (colCountRef.current !== colsNeeded || !segHeadsRef.current || !segSpeedRef.current || !segCountRef.current || !colSeedRef.current) {
       colCountRef.current = colsNeeded; const newSegHeads = []; const newSegSpeeds = []; for (let s = 0; s < MAX_SEGMENTS; s++) { newSegHeads[s] = new Float32Array(colsNeeded); newSegSpeeds[s] = new Float32Array(colsNeeded); }
-      const segCount = new Uint8Array(colsNeeded); const seeds = new Uint32Array(colsNeeded); const charsPerScreenInit = H / fontSize;
+      const segCount = new Uint8Array(colsNeeded); const seeds = new Uint32Array(colsNeeded); const fontScales = new Float32Array(colsNeeded); const speedScales = new Float32Array(colsNeeded); const charsPerScreenInit = H / fontSize;
       let colDepthScores = null; let depthCutoff = 0;
       if (depthLumaRef.current) { colDepthScores = new Float32Array(colsNeeded); const midY = H * 0.5; for (let i = 0; i < colsNeeded; i++) { const x = i * fontSize + fontSize * 0.5; colDepthScores[i] = getDepthValue(x, midY); } const sorted = Array.from(colDepthScores).sort((a, b) => b - a); const idxCut = Math.max(0, Math.min(sorted.length - 1, Math.floor(colsNeeded * 0.3))); depthCutoff = sorted[idxCut] ?? 0; }
-      for (let i = 0; i < colsNeeded; i++) { let count = 2; if (colDepthScores && depthCutoff > 0 && colDepthScores[i] >= depthCutoff) { count = 3; } segCount[i] = count; seeds[i] = (Math.random() * 0xffffffff) >>> 0; for (let s = 0; s < MAX_SEGMENTS; s++) { if (s < count) { const basePhase = count > 1 ? s / (count - 1) : 0; const phase = basePhase * 1.3 + Math.random() * 0.25; newSegHeads[s][i] = -phase * charsPerScreenInit; newSegSpeeds[s][i] = 0.7 + Math.random() * 0.6; } else { newSegHeads[s][i] = -9999; newSegSpeeds[s][i] = 0; } } }
-      segHeadsRef.current = newSegHeads; segSpeedRef.current = newSegSpeeds; segCountRef.current = segCount; colSeedRef.current = seeds;
+      for (let i = 0; i < colsNeeded; i++) { let count = Math.random() < 0.5 ? 4 : Math.random() < 0.35 ? 5 : 3; if (colDepthScores && depthCutoff > 0 && colDepthScores[i] >= depthCutoff) { count = 5; } segCount[i] = count; seeds[i] = (Math.random() * 0xffffffff) >>> 0; fontScales[i] = 0.85 + Math.random() * 0.3; const colBaseSpeed = 0.8 + Math.random() * 0.4; speedScales[i] = colBaseSpeed; for (let s = 0; s < MAX_SEGMENTS; s++) { if (s < count) { const basePhase = count > 1 ? s / (count - 1) : 0; const phase = basePhase * 0.4 + Math.random() * 0.1; newSegHeads[s][i] = -phase * charsPerScreenInit; newSegSpeeds[s][i] = colBaseSpeed * (0.95 + Math.random() * 0.1); } else { newSegHeads[s][i] = -9999; newSegSpeeds[s][i] = 0; } } }
+      segHeadsRef.current = newSegHeads; segSpeedRef.current = newSegSpeeds; segCountRef.current = segCount; colSeedRef.current = seeds; colFontScaleRef.current = fontScales; colSpeedScaleRef.current = speedScales;
     }
 
-    const cols = colCountRef.current; const segHeads = segHeadsRef.current; const segSpeeds = segSpeedRef.current; const segCount = segCountRef.current; const colSeed = colSeedRef.current;
+    const cols = colCountRef.current; const segHeads = segHeadsRef.current; const segSpeeds = segSpeedRef.current; const segCount = segCountRef.current; const colSeed = colSeedRef.current; const colFontScale = colFontScaleRef.current; const colSpeedScale = colSpeedScaleRef.current;
     const trailNorm = clamp(trail, 0, 1); const persistNorm = clamp(persistence, 0, 1);
-    const bgAlphaBase = 0.32 - 0.26 * persistNorm; // higher persistence => smaller clear alpha
+    const bgAlphaBase = 0.32 - 0.26 * persistNorm;
     const bgAlpha = clamp(bgAlphaBase, 0.04, 0.34);
     ctx.fillStyle = `rgba(0,0,0,${bgAlpha})`; ctx.fillRect(0, 0, W, H);
     ctx.textBaseline = "top";
-    const skipEvery = Math.max(1, Math.round(2.2 - Math.min(2, density))); const glowClamped = clamp(glow, 0, 0.5); const charsPerScreen = H / fontSize;
-    const minFactor = 0.25; const maxFactor = 1.6; const factor = minFactor + (maxFactor - minFactor) * trailNorm; let baseTailLen = Math.round(charsPerScreen * (factor + persistNorm * 0.45)); if (!Number.isFinite(baseTailLen) || baseTailLen < 2) baseTailLen = 2;
-    const shadowColorHead = `rgba(180,255,220,${glowClamped})`; const shadowColorTail = `rgba(0,255,140,${glowClamped * 0.6})`; const shadowBlurHead = 7 * glowClamped; const shadowBlurTail = 4 * glowClamped; const hasGlow = glowClamped > 0.01;
+    const charsPerScreen = H / fontSize;
+    const minFactor = 0.6; const maxFactor = 2.0; const factor = minFactor + (maxFactor - minFactor) * trailNorm; let baseTailLen = Math.round(charsPerScreen * (factor + persistNorm * 0.35)); if (!Number.isFinite(baseTailLen) || baseTailLen < 2) baseTailLen = 2;
 
     const renderSegment = (colIndex, segIndex, headRow, segCountForCol) => {
       const baseX = colIndex * fontSize; const k = Math.max(1, segCountForCol); const effectiveTail = Math.max(2, Math.round(baseTailLen / Math.sqrt(k)));
-      const drawTailFactor = segIndex === 0 ? 0.5 : 0.35; const drawTailLen = Math.max(2, Math.round(effectiveTail * drawTailFactor));
-      const headY = headRow * fontSize; const dHead = getDepthValue(baseX, headY); const nearHead = dHead * 2 - 1; const baseSize = clamp(fontSize * (1 + depthInfluence * nearHead * 0.25), 8, fontSize * 1.8);
+      const drawTailFactor = segIndex === 0 ? 0.85 : 0.80; const drawTailLen = Math.max(2, Math.round(effectiveTail * drawTailFactor));
+      const colFontRandom = colFontScale ? colFontScale[colIndex] || 1 : 1; const headY = headRow * fontSize; const dHead = getDepthValue(baseX, headY); const nearHead = dHead * 2 - 1; const baseSize = clamp(fontSize * colFontRandom * (1 + depthInfluence * nearHead * 0.25), 8, fontSize * 1.8);
       const [baseR, baseG, baseB] = hueToRGB(configRef.current.colorHue || 140);
       for (let j = 0; j < drawTailLen; j++) {
         const rowPos = headRow - j;
         const yChar = rowPos * fontSize;
-        // 允许尾部完全延伸到底部边缘和上方，不提前裁剪
         if (yChar < -fontSize || yChar > H + fontSize * 2) continue;
         const rowIndex = rowPos | 0;
         const isHeadChar = j === 0;
@@ -607,40 +572,113 @@ export default function MatrixAI() {
         const depthBoost = dBoostBase * dBoostBase;
         const localScale = 0.8 + depthBoost * depthInfluence * 1.1;
         const sizeLocal = (Math.max(8, baseSize * localScale) + 0.5) | 0;
-        ctx.font = `${sizeLocal}px sans-serif`;
+        
+        // ===== 优化：字体缓存 =====
+        const fontKey = sizeLocal | 0;
+        if (lastFontSize !== fontKey) {
+          lastFontStr = `${fontKey}px sans-serif`;
+          lastFontSize = fontKey;
+          ctx.font = lastFontStr;
+        } else {
+          ctx.font = lastFontStr;
+        }
+        
         const isPrimarySegment = segIndex === 0;
         if (isHeadChar) {
           const alphaHead = clamp(0.4 + 0.6 * depthBoost, 0.6, 1);
-          if (hasGlow && isPrimarySegment) { ctx.shadowColor = shadowColorHead; ctx.shadowBlur = shadowBlurHead; }
-          else if (hasGlow) { ctx.shadowColor = shadowColorTail; ctx.shadowBlur = shadowBlurTail * 0.8; }
-          else { ctx.shadowBlur = 0; }
           const headAlpha = isPrimarySegment ? alphaHead : alphaHead * 0.6;
-          // Keep leading (head) glyph pure white, unaffected by hue
-          ctx.fillStyle = `rgba(255,255,255,${headAlpha})`;
+          const alphaStr = headAlpha.toFixed(2);
+          if (lastHeadAlphaStr !== alphaStr) {
+            ctx.fillStyle = `rgba(255,255,255,${alphaStr})`;
+            lastHeadAlphaStr = alphaStr;
+          }
         } else {
           const fadeK = (1.1 + (1 - trailNorm) * 1.6) * (0.55 + 0.75 * (1 - persistNorm));
           const brightness = Math.exp(-fadeK * tTail);
           const alphaTail = clamp(0.04 + 0.2 * trailNorm + 0.8 * brightness * (0.4 + 0.6 * depthBoost), 0.06, isPrimarySegment ? 0.97 : 0.6);
-          if (hasGlow && isPrimarySegment) { ctx.shadowColor = shadowColorTail; ctx.shadowBlur = shadowBlurTail; }
-          else if (hasGlow) { ctx.shadowColor = shadowColorTail; ctx.shadowBlur = shadowBlurTail * 0.6; }
-          else { ctx.shadowBlur = 0; }
           const tailScale = 0.35 + 0.65 * brightness;
           const tailR = Math.round(baseR * tailScale);
           const tailG = Math.round(baseG * tailScale);
           const tailB = Math.round(baseB * tailScale * (0.85 + 0.15 * depthBoost));
-            ctx.fillStyle = `rgba(${tailR},${tailG},${tailB},${alphaTail})`;
+          
+          // ===== 优化：颜色缓存 =====
+          const alphaStr = alphaTail.toFixed(2);
+          const colorKey = `${tailR},${tailG},${tailB},${alphaStr}`;
+          if (lastTailColorKey !== colorKey) {
+            ctx.fillStyle = `rgba(${tailR},${tailG},${tailB},${alphaStr})`;
+            lastTailColorKey = colorKey;
+          }
         }
         const char = glyphAt(colIndex, rowIndex, tickRef.current, glyphs, colSeed[colIndex] || 0);
         ctx.fillText(char, baseX | 0, yChar | 0);
       }
-      const fallDepth = dHead; const fallNorm = clamp(fallDepth, 0, 1); const fallMul = 0.6 + 1.2 * (1 - fallNorm); const segSpeedMul = segSpeeds[segIndex][colIndex] || 1; const step = speed * fallMul * segSpeedMul * 0.12; let newHeadRow = headRow + step; if (headY > H + fontSize * 4) { const effTail = Math.max(2, Math.round(baseTailLen / Math.sqrt(Math.max(1, segCountForCol)))); newHeadRow = -effTail - Math.random() * charsPerScreen * 0.5; segSpeeds[segIndex][colIndex] = 0.7 + Math.random() * 0.6; if (segIndex === 0) { colSeed[colIndex] = (Math.random() * 0xffffffff) >>> 0; } }
+      const fallDepth = dHead; const fallNorm = clamp(fallDepth, 0, 1); const fallMul = 0.6 + 1.2 * (1 - fallNorm); const segSpeedMul = segSpeeds[segIndex][colIndex] || 1; const colSpeedRandom = colSpeedScale ? colSpeedScale[colIndex] || 1 : 1; const step = speed * fallMul * segSpeedMul * colSpeedRandom * 0.12; let newHeadRow = headRow + step; const effTail = Math.max(2, Math.round(baseTailLen / Math.sqrt(Math.max(1, segCountForCol)))); const tailY = (headRow - effTail) * fontSize; if (tailY > H + fontSize * 2) { newHeadRow = -effTail - Math.random() * charsPerScreen * 0.5; segSpeeds[segIndex][colIndex] = 0.7 + Math.random() * 0.6; if (segIndex === 0) { colSeed[colIndex] = (Math.random() * 0xffffffff) >>> 0; } }
       return newHeadRow;
     };
 
+    // ===== 全列渲染：移除跳过逻辑以实现密集效果 =====
+    const gapThreshold = (H * 0.1) / fontSize; // 10% 屏幕高度的间隙阈值
+    
     for (let i = 0; i < cols; i++) {
-      if (i % skipEvery !== 0) continue; const countForCol = segCount[i] || 0; if (!countForCol) continue;
-      for (let s = 0; s < countForCol && s < MAX_SEGMENTS; s++) { const headRow = segHeads[s][i]; const newHeadRow = renderSegment(i, s, headRow, countForCol); segHeads[s][i] = newHeadRow; }
+      const countForCol = segCount[i] || 0; 
+      if (!countForCol) continue;
+      
+      // 渲染该列的所有段
+      for (let s = 0; s < countForCol && s < MAX_SEGMENTS; s++) { 
+        const headRow = segHeads[s][i]; 
+        const newHeadRow = renderSegment(i, s, headRow, countForCol); 
+        segHeads[s][i] = newHeadRow; 
+      }
+      
+      // 检测该列是否有超过阈值的间隙，如有则补偿
+      if (countForCol < MAX_SEGMENTS) {
+        const positions = [];
+        for (let s = 0; s < countForCol; s++) {
+          const headRow = segHeads[s][i];
+          const effTail = Math.max(2, Math.round(baseTailLen / Math.sqrt(Math.max(1, countForCol)) * 0.85));
+          positions.push({ start: headRow, tailLen: effTail });
+        }
+        
+        // 查找最大间隙
+        positions.sort((a, b) => a.start - b.start);
+        let maxGap = 0;
+        let maxGapMidPos = -1;
+        
+        for (let s = 0; s < positions.length - 1; s++) {
+          const endPos1 = positions[s].start + positions[s].tailLen;
+          const startPos2 = positions[s + 1].start;
+          const gap = Math.max(0, startPos2 - endPos1);
+          if (gap > maxGap) {
+            maxGap = gap;
+            maxGapMidPos = (endPos1 + startPos2) / 2;
+          }
+        }
+        
+        // 如果最大间隙超过阈值，追加补偿段
+        if (maxGap > gapThreshold && countForCol < 5) {
+          const newSegIndex = countForCol;
+          if (newSegIndex < MAX_SEGMENTS) {
+            segHeads[newSegIndex][i] = maxGapMidPos;
+            segSpeeds[newSegIndex][i] = 0.8 + Math.random() * 0.4;
+            segCount[i] = countForCol + 1;
+          }
+        }
+      }
     }
+    
+    // ===== 添加左右淡出效果 =====
+    const fadeWidth = W * 0.21; // 左右各占宽度的12%
+    const gradientLeft = ctx.createLinearGradient(0, 0, fadeWidth, 0);
+    gradientLeft.addColorStop(0, 'rgba(0,0,0,1)');
+    gradientLeft.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradientLeft;
+    ctx.fillRect(0, 0, fadeWidth, H);
+    
+    const gradientRight = ctx.createLinearGradient(W - fadeWidth, 0, W, 0);
+    gradientRight.addColorStop(0, 'rgba(0,0,0,0)');
+    gradientRight.addColorStop(1, 'rgba(0,0,0,1)');
+    ctx.fillStyle = gradientRight;
+    ctx.fillRect(W - fadeWidth, 0, fadeWidth, H);
   }, []);
 
   // 生成逻辑已移除
@@ -773,88 +811,101 @@ export default function MatrixAI() {
     return () => cancelAnimationFrame(rafId);
   }, [running, draw, resampleFromCanvas, resampleFromVideo]);
 
-  const isTtsMode = uiState.depthUrl === 'tts-live-face';
-
-  if (isMobile) {
-    return (
-      <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:'#0b0b0f', color:'#e5e7eb' }}>
-        <div style={{ position:'relative', width:'100%', height:'70vh', maxHeight:'70vh', overflow:'hidden' }}>
-          <canvas ref={canvasRef} style={{ display:'block', width:'100%', height:'100%' }} />
-          <div style={{ position:'absolute', top:10, left:12, color:'#a7f3d0', fontSize:12, background:'rgba(6,6,8,0.5)', border:'1px solid rgba(255,255,255,0.10)', padding:'6px 8px', borderRadius:8, zIndex:5 }}>
-            FPS: {fps}
-          </div>
-        </div>
-
-        {isTtsMode && (
-          <div style={{
-            width:'100%',
-            maxHeight:'25vh',
-            minHeight: 200,
-            padding:'12px 14px',
-            boxSizing:'border-box',
-            background:'rgba(10,10,14,0.9)',
-            backdropFilter:'blur(12px)',
-            borderTop:'1px solid rgba(255,255,255,0.12)',
-            boxShadow:'0 -6px 24px rgba(0,0,0,0.45)'
-          }}>
-            <TTSCharacterPanel 
-              onDepthCanvasReady={handleDepthCanvasReady} 
-              isEmbedded={true}
-              isCompact={false}
-              ttsEngine={ttsEngine}
-              ttsLanguage={ttsLanguage}
-              apiKey={ttsApiKey}
-              onEngineChange={setTtsEngine}
-              onLanguageChange={setTtsLanguage}
-              onApiKeyChange={setTtsApiKey}
-              onCanvasRefReady={(canvasRef) => { ttsPreviewCanvasRef.current = canvasRef; }}
-              onDebugInfoUpdate={setTtsDebugInfo}
-            />
-          </div>
-        )}
-
-        <div style={{ width:'100%', padding:'10px 14px 18px', boxSizing:'border-box', background:'#0b0b0f' }}>
-          <Panel
-            running={running}
-            setRunning={setRunning}
-            onReset={() => { configRef.current = { ...DEFAULT_CONFIG }; setUiState({ ...DEFAULT_CONFIG }); }}
-            onDownload={() => { if (!canvasRef.current) return; const a = document.createElement('a'); a.href = canvasRef.current.toDataURL('image/png'); a.download = 'matrix_ai.png'; a.click(); }}
-            uiState={uiState}
-            updateConfig={updateConfig}
-            depthPreview={depthPreview}
-            depthInfo={depthInfo}
-            isTtsDepthActive={isTtsDepthActive}
-            collapsed={false}
-            setCollapsed={() => {}}
-            onDepthCanvasReady={handleDepthCanvasReady}
-            ttsEngine={ttsEngine}
-            ttsLanguage={ttsLanguage}
-            ttsApiKey={ttsApiKey}
-            onTtsEngineChange={setTtsEngine}
-            onTtsLanguageChange={setTtsLanguage}
-            onTtsApiKeyChange={setTtsApiKey}
-            ttsPreviewCanvasRef={ttsPreviewCanvasRef}
-            ttsDebugInfo={ttsDebugInfo}
-            mobileLayout={true}
-          />
-        </div>
-      </div>
-    );
-  }
+  // No minimize state needed - always show compact version at bottom
 
   return (
-    <div style={{ position:'relative', width:'100%', height:'100vh', background:'#0b0b0f', overflow:'hidden' }}>
-      <canvas ref={canvasRef} style={{ display:'block', width:'100%', height:'100%' }} />
-      <div style={{ position:'absolute', top:10, left:12, color:'#a7f3d0', fontSize:12, background:'rgba(6,6,8,0.5)', border:'1px solid rgba(255,255,255,0.10)', padding:'6px 8px', borderRadius:8, zIndex:5 }}>
+    <div style={{ position:'relative', width:'100%', height:'100vh', background:'#0b0b0f', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <canvas ref={canvasRef} style={{ display:'block', maxWidth:'100%', maxHeight:'100%' }} />
+      <div style={{ position:'absolute', top:10, left:12, color:'#a7f3d0', fontSize:12, background:'rgba(6,6,8,0.5)', border:'1px solid rgba(255,255,255,0.10)', padding:'6px 8px', borderRadius:8 }}>
         FPS: {fps}
       </div>
-      {isTtsMode && (
+      
+      {/* Social Media Links - Bottom Left */}
+      <div style={{
+        position: 'absolute',
+        bottom: 20,
+        left: 12,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        zIndex: 15,
+        pointerEvents: 'auto'
+      }}>
+        <a
+          href="https://xhslink.com/m/3AUUKqviKxa"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 12px',
+            borderRadius: 8,
+            background: 'rgba(6,6,8,0.6)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            color: '#e5e7eb',
+            textDecoration: 'none',
+            fontSize: 12,
+            fontWeight: 500,
+            transition: 'all 0.2s ease',
+            cursor: 'pointer'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(236,72,153,0.3)';
+            e.currentTarget.style.borderColor = 'rgba(236,72,153,0.5)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(6,6,8,0.6)';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+          }}
+        >
+          <svg width="32" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+            <rect x="1" y="3" width="32" height="18" rx="4" fill="#FF2442"/>
+            <text x="16" y="16" fontSize="10" fontWeight="bold" fill="white" textAnchor="middle" fontFamily="Arial, sans-serif">小红书</text>
+          </svg>
+          小红书
+        </a>
+        <a
+          href="https://github.com/akldr"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 12px',
+            borderRadius: 8,
+            background: 'rgba(6,6,8,0.6)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            color: '#e5e7eb',
+            textDecoration: 'none',
+            fontSize: 12,
+            fontWeight: 500,
+            transition: 'all 0.2s ease',
+            cursor: 'pointer'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(59,130,246,0.3)';
+            e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(6,6,8,0.6)';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+          }}
+        >
+          <Github className="h-4 w-4" />
+          GitHub
+        </a>
+      </div>
+      
+      {/* TTS Compact Panel - Always shown at bottom when TTS mode active */}
+      {uiState.depthUrl === 'tts-live-face' && (
         <div style={{
           position: 'absolute',
           bottom: 0,
           left: '50%',
           transform: 'translateX(-50%)',
-          width: 'min(810px, 81vw)',
+          width: 'min(900px, 90vw)',
           padding: '12px 16px',
           backgroundColor: 'transparent',
           backdropFilter: 'blur(12px)',
@@ -880,6 +931,7 @@ export default function MatrixAI() {
           />
         </div>
       )}
+      
       <Panel
         running={running}
         setRunning={setRunning}

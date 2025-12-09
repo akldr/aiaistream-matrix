@@ -21,13 +21,8 @@ const TTSCharacterPanel = ({
   onCanvasRefReady, // New: callback to pass canvas ref to parent
   onDebugInfoUpdate // New: callback to pass debug info to parent
 }) => {
-  // 手机和桌面配置分开
-  const isMobile = /iPhone|iPad|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  const CANVAS_SIZE = isMobile ? 480 : 640; // 手机 480×480，桌面 640×640 (增大以提升Matrix depth map分辨率)
-  
   // Use external props if provided, otherwise use internal state
   const [internalEngine, setInternalEngine] = useState('web-speech');
-
   const [internalLanguage, setInternalLanguage] = useState('auto');
   const [internalApiKey, setInternalApiKey] = useState('');
   
@@ -50,7 +45,6 @@ const TTSCharacterPanel = ({
   
   const [ttsText, setTtsText] = useState(`Congratulations! Today is your day. You're off to Great Places! You're off and away! You have brains in your head. You have feet in your shoes. You can steer yourself any direction you choose. You're on your own. And you know what you know. And YOU are the guy who'll decide where to go.`);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isSynthesizing, setIsSynthesizing] = useState(false); // TTS 合成中
   const [debugInfo, setDebugInfo] = useState({ viseme: '-', mouthOpenness: '-' });
 
   // Refs - shared across all render modes
@@ -59,33 +53,11 @@ const TTSCharacterPanel = ({
   const speechSynthesizerRef = useRef(null);
   const animationFrameRef = useRef(null);
   const playbackIntervalRef = useRef(null);
-  const lastLoggedTextRef = useRef(''); // 记录上次已 log 的文本
-  const logDebounceRef = useRef(null); // 日志去抖
-  const audioContextRef = useRef(null); // 预热的音频上下文
 
   /**
    * Initialize components on mount
    */
   useEffect(() => {
-    // 预热音频上下文（iOS兼容性）
-    try {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-    } catch (e) { /* ignore */ }
-
-    // 预热语音引擎，提前加载 voices，减少首次延迟
-    try {
-      const synth = window.speechSynthesis;
-      if (synth) {
-        const voices = synth.getVoices();
-        if (!voices || voices.length === 0) {
-          synth.onvoiceschanged = () => {
-            synth.getVoices();
-            synth.onvoiceschanged = null;
-          };
-        }
-      }
-    } catch (e) { /* ignore */ }
-
     // 确保 Canvas 有正确的尺寸后再初始化
     const initTimer = setTimeout(() => {
       const initializeComponents = async () => {
@@ -202,9 +174,6 @@ const TTSCharacterPanel = ({
         clearInterval(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
       }
-      if (audioContextRef.current) {
-        try { audioContextRef.current.close(); } catch (e) { /* ignore */ }
-      }
       if (faceModelRef.current) {
         faceModelRef.current.destroy();
         faceModelRef.current = null;
@@ -250,37 +219,16 @@ const TTSCharacterPanel = ({
   /**
    * 将 TTS 文本按日期写入服务器日志
    */
-  const logToServer = useCallback((text) => {
+  const logToServer = useCallback(async (text) => {
     const trimmed = text.trim().slice(0, 300);
     if (!trimmed) return;
-    if (lastLoggedTextRef.current === trimmed) return;
     try {
-      lastLoggedTextRef.current = trimmed;
-
-      // 去抖 200ms，避免连续点击多次 log
-      if (logDebounceRef.current) {
-        clearTimeout(logDebounceRef.current);
-      }
-
-      logDebounceRef.current = setTimeout(() => {
-        try {
-          const apiEndpoint = process.env.NEXT_PUBLIC_TTS_API_ENDPOINT || '/api/tts-log';
-          const payload = JSON.stringify({ text: trimmed });
-          if (navigator.sendBeacon) {
-            const blob = new Blob([payload], { type: 'application/json' });
-            navigator.sendBeacon(apiEndpoint, blob);
-          } else {
-            fetch(apiEndpoint, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: payload,
-              credentials: 'omit'
-            });
-          }
-        } catch (err) {
-          // Log persistence failed - silently continue
-        }
-      }, 200);
+      const apiEndpoint = process.env.NEXT_PUBLIC_TTS_API_ENDPOINT || '/api/tts-log';
+      await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: trimmed })
+      });
     } catch (err) {
       // Log persistence failed - silently continue
     }
@@ -290,12 +238,16 @@ const TTSCharacterPanel = ({
    * 处理 TTS 合成和播放 - 实时动画
    */
   const handleSpeak = useCallback(async () => {
-    // 恢复已预热的音频上下文，避免 iOS 静音阻塞
+
+    // iOS/Safari 音频解锁：播放一个极短静音音频
     try {
-      const ctx = audioContextRef.current;
-      if (ctx && ctx.state === 'suspended') {
-        await ctx.resume();
-      }
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+      setTimeout(() => ctx.close(), 200);
     } catch (e) { /* ignore */ }
 
     if (!ttsText.trim()) {
@@ -314,13 +266,12 @@ const TTSCharacterPanel = ({
     }
 
     // Prevent starting new speech while already playing
-    if (isPlaying || isSynthesizing) {
+    if (isPlaying) {
       return;
     }
 
     try {
-      setIsSynthesizing(true); // 显示合成中状态
-      logToServer(ttsText);
+      await logToServer(ttsText);
       if (playbackIntervalRef.current) {
         clearInterval(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
@@ -328,18 +279,16 @@ const TTSCharacterPanel = ({
 
       const result = await speechSynthesizerRef.current.synthesize(ttsText);
       // TTS completed
-      setIsSynthesizing(false);
     } catch (error) {
       console.error('TTS synthesis failed:', error);
       alert(`语音合成失败: ${error.message}`);
       setIsPlaying(false);
-      setIsSynthesizing(false);
       if (playbackIntervalRef.current) {
         clearInterval(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
       }
     }
-  }, [ttsText, logToServer, isPlaying, isSynthesizing]);
+  }, [ttsText, logToServer]);
 
   /**
    * 停止播放
@@ -412,7 +361,6 @@ const TTSCharacterPanel = ({
           />
           <button
             onClick={isPlaying ? handleStop : handleSpeak}
-            disabled={isSynthesizing}
             style={{
               minWidth: '50px',
               width: '50px',
@@ -420,11 +368,11 @@ const TTSCharacterPanel = ({
               minHeight: '50px',
               borderRadius: 8,
               border: '1px solid rgba(255,255,255,0.12)',
-              background: isPlaying ? '#ef4444' : isSynthesizing ? '#f97316' : '#3b82f6',
+              background: isPlaying ? '#ef4444' : '#3b82f6',
               color: '#ffffff',
               fontSize: 14,
               fontWeight: 600,
-              cursor: isSynthesizing ? 'not-allowed' : 'pointer',
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -432,22 +380,11 @@ const TTSCharacterPanel = ({
               touchAction: 'manipulation',
               WebkitTapHighlightColor: 'transparent',
               transition: 'background 0.2s ease',
-              padding: 0,
-              opacity: isSynthesizing ? 0.8 : 1,
-              animation: isSynthesizing ? 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none'
+              padding: 0
             }}
           >
             {isPlaying ? (
               <Pause className="h-5 w-5" />
-            ) : isSynthesizing ? (
-              <div style={{
-                width: '20px',
-                height: '20px',
-                border: '2px solid rgba(255,255,255,0.3)',
-                borderTopColor: '#ffffff',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }} />
             ) : (
               <Play className="h-5 w-5" />
             )}
@@ -458,8 +395,8 @@ const TTSCharacterPanel = ({
           ref={(el) => {
             canvasRef.current = el;
             if (el && !el.width) {
-              el.width = CANVAS_SIZE;
-              el.height = CANVAS_SIZE;
+              el.width = 512;
+              el.height = 512;
             }
             // Pass canvas ref to parent for preview in main panel
             if (el && onCanvasRefReady) {
@@ -472,140 +409,47 @@ const TTSCharacterPanel = ({
     );
   }
 
-  // Embedded mode: used for the main panel/mobile TTS area
+  // For embedded mode (in main panel): show canvas and debug info only
+  // Settings are now in the main panel
   return (
-    <div style={{ display: 'grid', gap: 10, width: '100%', height: '100%', overflowY: 'auto', paddingRight: 2 }}>
-      <div style={{ display: 'grid', gap: 6 }}>
-        <label style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>TTS 文本</label>
-        <textarea
-          value={ttsText}
-          onChange={(e) => setTtsText(e.target.value)}
-          placeholder="输入要转语音的文本..."
-          maxLength={300}
+    <div style={{ display: 'grid', gap: 12, width: '100%' }}>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <label style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, color: '#90909b' }}>
+          面部动画预览
+        </label>
+        <canvas
+          ref={(el) => {
+            canvasRef.current = el;
+            if (el && !el.width) {
+              el.width = 512;
+              el.height = 512;
+            }
+          }}
           style={{
-            width: '100%',
-            minHeight: 86,
-            maxHeight: 140,
             borderRadius: 10,
             border: '1px solid rgba(255,255,255,0.12)',
-            background: 'rgba(24,24,27,0.75)',
-            color: '#e5e7eb',
-            fontSize: 13,
-            lineHeight: 1.5,
-            padding: '10px 12px',
-            fontFamily: 'system-ui, sans-serif',
-            resize: 'vertical'
+            background: '#000000',
+            display: 'block',
+            width: '100%',
+            height: 'auto',
+            maxHeight: '200px',
+            objectFit: 'contain',
+            imageRendering: 'auto'
           }}
         />
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button
-          onClick={isPlaying ? handleStop : handleSpeak}
-          disabled={isSynthesizing}
-          style={{
-            flex: '0 0 52px',
-            height: 52,
-            borderRadius: 10,
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: isPlaying ? '#ef4444' : isSynthesizing ? '#f97316' : '#3b82f6',
-            color: '#ffffff',
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: isSynthesizing ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            touchAction: 'manipulation',
-            WebkitTapHighlightColor: 'transparent',
-            transition: 'background 0.2s ease',
-            padding: 0,
-            opacity: isSynthesizing ? 0.8 : 1,
-            animation: isSynthesizing ? 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none'
-          }}
-        >
-          {isPlaying ? (
-            <Pause className="h-5 w-5" />
-          ) : isSynthesizing ? (
-            <div style={{
-              width: '20px',
-              height: '20px',
-              border: '2px solid rgba(255,255,255,0.3)',
-              borderTopColor: '#ffffff',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite'
-            }} />
-          ) : (
-            <Play className="h-5 w-5" />
-          )}
-        </button>
-
-        <button
-          onClick={handleReset}
-          style={{
-            flex: '0 0 52px',
-            height: 52,
-            borderRadius: 10,
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: 'rgba(255,255,255,0.06)',
-            color: '#e5e7eb',
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            touchAction: 'manipulation',
-            WebkitTapHighlightColor: 'transparent'
-          }}
-        >
-          Reset
-        </button>
-
-        <div style={{
-          flex: 1,
-          padding: 10,
-          borderRadius: 10,
-          border: '1px solid rgba(255,255,255,0.12)',
-          background: 'rgba(24,24,27,0.6)',
-          fontSize: 11,
-          color: '#a0a0a8',
-          fontFamily: 'monospace',
-          minHeight: 52,
-          display: 'grid',
-          alignContent: 'center',
-          gap: 4
-        }}>
-          <div>Viseme: <span style={{ color: '#3b82f6' }}>{debugInfo.viseme}</span></div>
-          <div>Mouth: <span style={{ color: '#10b981' }}>{debugInfo.mouthOpenness}</span></div>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gap: 6 }}>
-        <label style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, color: '#90909b' }}>
-          面部动画预览
-        </label>
-        <div style={{ position: 'relative', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', background: '#000000', overflow: 'hidden', width: '100%', height: '150px' }}>
-          <canvas
-            ref={(el) => {
-              canvasRef.current = el;
-              if (el && !el.width) {
-                el.width = CANVAS_SIZE;
-                el.height = CANVAS_SIZE;
-              }
-              if (el && onCanvasRefReady) {
-                onCanvasRefReady(el);
-              }
-            }}
-            style={{
-              display: 'block',
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              imageRendering: 'auto'
-            }}
-          />
-        </div>
+      <div style={{
+        padding: 10,
+        borderRadius: 8,
+        border: '1px solid rgba(255,255,255,0.12)',
+        background: 'rgba(24,24,27,0.6)',
+        fontSize: 11,
+        color: '#a0a0a8',
+        fontFamily: 'monospace'
+      }}>
+        <div>Viseme: <span style={{ color: '#3b82f6' }}>{debugInfo.viseme}</span></div>
+        <div>Mouth: <span style={{ color: '#10b981' }}>{debugInfo.mouthOpenness}</span></div>
       </div>
     </div>
   );
