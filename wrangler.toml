@@ -1,8 +1,3 @@
-name = "aiaistream-tts-logger"
-main = "src/worker.js"
-compatibility_date = "2024-12-01"
+name = "aiaistream-matrix"
 pages_build_output_dir = "out"
-
-[[env.production.kv_namespaces]]
-binding = "TTS_LOGS"
-id = "your_kv_namespace_id"
+compatibility_date = "2024-12-01"
