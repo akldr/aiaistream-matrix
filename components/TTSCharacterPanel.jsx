@@ -21,8 +21,13 @@ const TTSCharacterPanel = ({
   onCanvasRefReady, // New: callback to pass canvas ref to parent
   onDebugInfoUpdate // New: callback to pass debug info to parent
 }) => {
+  // 手机和桌面配置分开
+  const isMobile = /iPhone|iPad|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const CANVAS_SIZE = isMobile ? 384 : 512; // 手机 384×384，桌面 512×512
+  
   // Use external props if provided, otherwise use internal state
   const [internalEngine, setInternalEngine] = useState('web-speech');
+
   const [internalLanguage, setInternalLanguage] = useState('auto');
   const [internalApiKey, setInternalApiKey] = useState('');
   
@@ -453,8 +458,8 @@ const TTSCharacterPanel = ({
           ref={(el) => {
             canvasRef.current = el;
             if (el && !el.width) {
-              el.width = 512;
-              el.height = 512;
+              el.width = CANVAS_SIZE;
+              el.height = CANVAS_SIZE;
             }
             // Pass canvas ref to parent for preview in main panel
             if (el && onCanvasRefReady) {
