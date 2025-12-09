@@ -59,33 +59,37 @@ function isVideoUrl(url) {
 
 // 抽出独立 Panel 组件
 const Panel = (props) => {
-  const { running, setRunning, onReset, onDownload, uiState, updateConfig, depthPreview, depthInfo, collapsed, setCollapsed, isTtsDepthActive, onDepthCanvasReady } = props;
+  const { running, setRunning, onReset, onDownload, uiState, updateConfig, depthPreview, depthInfo, collapsed, setCollapsed, isTtsDepthActive, onDepthCanvasReady, ttsEngine, ttsLanguage, ttsApiKey, onTtsEngineChange, onTtsLanguageChange, onTtsApiKeyChange, ttsPreviewCanvasRef, ttsDebugInfo, mobileLayout = false } = props;
   
   // 安全的折叠切换，防止影响TTS播放
   const handleToggleCollapse = useCallback((shouldCollapse) => {
     // 只改变UI状态，不影响TTS引擎
-    setCollapsed(shouldCollapse);
-  }, [setCollapsed]);
+    if (!mobileLayout) {
+      setCollapsed(shouldCollapse);
+    }
+  }, [setCollapsed, mobileLayout]);
   
   // Check if current selection is TTS
   const isTtsSelected = uiState.depthUrl === 'tts-live-face';
+  const isCollapsed = mobileLayout ? false : collapsed;
   
   return (
     <div style={{ 
-      position:'absolute', 
-      top: 'clamp(10px, 2vh, 20px)', 
-      right: 'clamp(10px, 2vw, 20px)', 
-      bottom: 'clamp(10px, 2vh, 20px)', 
-      zIndex:20, 
+      position: mobileLayout ? 'relative' : 'absolute', 
+      top: mobileLayout ? 'auto' : 'clamp(10px, 2vh, 20px)', 
+      right: mobileLayout ? 'auto' : 'clamp(10px, 2vw, 20px)', 
+      bottom: mobileLayout ? 'auto' : 'clamp(10px, 2vh, 20px)', 
+      zIndex: mobileLayout ? 5 : 20, 
       display:'flex', 
       flexDirection:'column', 
-      alignItems:'flex-end', 
-      pointerEvents:'none',
-      maxWidth: 'calc(100vw - 20px)'
+      alignItems: mobileLayout ? 'stretch' : 'flex-end', 
+      pointerEvents: mobileLayout ? 'auto' : 'none',
+      maxWidth: mobileLayout ? '100%' : 'calc(100vw - 20px)',
+      width: mobileLayout ? '100%' : 'auto'
     }}>
-      <div style={{ pointerEvents:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10, maxHeight:'100%' }}>
+      <div style={{ pointerEvents:'auto', display:'flex', flexDirection:'column', alignItems: mobileLayout ? 'stretch' : 'flex-end', gap:10, maxHeight: mobileLayout ? 'none' : '100%', width: mobileLayout ? '100%' : 'auto' }}>
         {/* 折叠按钮 - 仅在折叠时显示 */}
-        {collapsed && (
+        {!mobileLayout && isCollapsed && (
           <Button 
             variant="secondary" 
             size="icon" 
@@ -102,37 +106,39 @@ const Panel = (props) => {
         
         {/* Card - 始终存在，用 visibility 控制显示 */}
         <Card style={{ 
-          width: collapsed ? 0 : 'min(max(320px, 30vw), 480px)', 
-          maxWidth: collapsed ? 0 : 'calc(100vw - 20px)',
-          maxHeight: collapsed ? 0 : 'calc(100vh - 20px)',
-          overflowY: collapsed ? 'hidden' : 'auto',
-          opacity: collapsed ? 0 : 1,
-          visibility: collapsed ? 'hidden' : 'visible',
-          transition: 'opacity 0.2s ease, width 0.2s ease',
+          width: isCollapsed ? 0 : mobileLayout ? '100%' : 'min(max(320px, 30vw), 480px)', 
+          maxWidth: isCollapsed ? 0 : mobileLayout ? '100%' : 'calc(100vw - 20px)',
+          maxHeight: isCollapsed ? 0 : mobileLayout ? 'none' : 'calc(100vh - 20px)',
+          overflowY: isCollapsed ? 'hidden' : 'auto',
+          opacity: isCollapsed ? 0 : 1,
+          visibility: isCollapsed ? 'hidden' : 'visible',
+          transition: mobileLayout ? 'opacity 0.15s ease' : 'opacity 0.2s ease, width 0.2s ease',
           display:'flex', 
           flexDirection:'column',
           WebkitOverflowScrolling: 'touch',
-          pointerEvents: collapsed ? 'none' : 'auto'
+          pointerEvents: isCollapsed ? 'none' : 'auto'
         }}>
             <CardHeader style={{ flexShrink:0 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
                 <CardTitle>
                   <Sparkles className="h-4 w-4" style={{ color:'#34d399' }} /> Matrix with Depth
                 </CardTitle>
-                <div style={{ display:'flex', gap:8 }}>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => handleToggleCollapse(true)}
-                    style={{ 
-                      touchAction: 'manipulation',
-                      minWidth: '44px',
-                      minHeight: '44px'
-                    }}
-                  >
-                    <ChevronsRight className="h-4 w-4" />
-                  </Button>
-                </div>
+                {!mobileLayout && (
+                  <div style={{ display:'flex', gap:8 }}>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => handleToggleCollapse(true)}
+                      style={{ 
+                        touchAction: 'manipulation',
+                        minWidth: '44px',
+                        minHeight: '44px'
+                      }}
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
               {/* API key input removed */}
               <div style={{ display:'flex', gap:10, marginTop:10 }}>
@@ -222,11 +228,11 @@ const Panel = (props) => {
                       
                       {/* TTS预览 - 显示底部实例的canvas */}
                       <div style={{ display:'grid', gap:8 }}>
-                        <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:0.6, fontWeight:700, color:'#90909b' }}>
+                          <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:0.6, fontWeight:700, color:'#90909b' }}>
                           面部动画预览
                         </div>
                         {props.ttsPreviewCanvasRef?.current ? (
-                          <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'140px', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'320px', display:'flex', alignItems:'center', justifyContent:'center' }}>
                             <canvas
                               ref={(el) => {
                                 if (el && props.ttsPreviewCanvasRef?.current) {
@@ -285,7 +291,7 @@ const Panel = (props) => {
                           Preview {depthInfo ? `— ${depthInfo}` : ""}
                         </div>
                         {depthPreview ? (
-                          <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'140px', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          <div style={{ position:'relative', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, overflow:'hidden', background:'rgba(6,6,8,0.5)', width:'100%', height:'180px', display:'flex', alignItems:'center', justifyContent:'center' }}>
                             {isVideoUrl(depthPreview) ? (
                               <video
                                 src={depthPreview}
@@ -411,6 +417,20 @@ export default function MatrixAI() {
   const [ttsApiKey, setTtsApiKey] = useState('');
   const [ttsDebugInfo, setTtsDebugInfo] = useState({ viseme: '-', mouthOpenness: '-' });
   const ttsPreviewCanvasRef = useRef(null); // Reference to TTS canvas for main panel preview
+
+  // 设备检测：移动端使用专用布局
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const detect = () => {
+      const ua = navigator.userAgent || '';
+      const uaMobile = /iPhone|iPad|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+      const smallScreen = typeof window !== 'undefined' ? window.innerWidth <= 900 : false;
+      setIsMobile(uaMobile || smallScreen);
+    };
+    detect();
+    window.addEventListener('resize', detect);
+    return () => window.removeEventListener('resize', detect);
+  }, []);
 
   // 移除 AI 生成区域（按需求暂不显示）
 
@@ -753,20 +773,82 @@ export default function MatrixAI() {
     return () => cancelAnimationFrame(rafId);
   }, [running, draw, resampleFromCanvas, resampleFromVideo]);
 
-  // No minimize state needed - always show compact version at bottom
+  const isTtsMode = uiState.depthUrl === 'tts-live-face';
+
+  if (isMobile) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:'#0b0b0f', color:'#e5e7eb' }}>
+        <div style={{ position:'relative', width:'100%', height:'70vh', maxHeight:'70vh', overflow:'hidden' }}>
+          <canvas ref={canvasRef} style={{ display:'block', width:'100%', height:'100%' }} />
+          <div style={{ position:'absolute', top:10, left:12, color:'#a7f3d0', fontSize:12, background:'rgba(6,6,8,0.5)', border:'1px solid rgba(255,255,255,0.10)', padding:'6px 8px', borderRadius:8, zIndex:5 }}>
+            FPS: {fps}
+          </div>
+        </div>
+
+        {isTtsMode && (
+          <div style={{
+            width:'100%',
+            maxHeight:'25vh',
+            minHeight: 200,
+            padding:'12px 14px',
+            boxSizing:'border-box',
+            background:'rgba(10,10,14,0.9)',
+            backdropFilter:'blur(12px)',
+            borderTop:'1px solid rgba(255,255,255,0.12)',
+            boxShadow:'0 -6px 24px rgba(0,0,0,0.45)'
+          }}>
+            <TTSCharacterPanel 
+              onDepthCanvasReady={handleDepthCanvasReady} 
+              isEmbedded={true}
+              isCompact={false}
+              ttsEngine={ttsEngine}
+              ttsLanguage={ttsLanguage}
+              apiKey={ttsApiKey}
+              onEngineChange={setTtsEngine}
+              onLanguageChange={setTtsLanguage}
+              onApiKeyChange={setTtsApiKey}
+              onCanvasRefReady={(canvasRef) => { ttsPreviewCanvasRef.current = canvasRef; }}
+              onDebugInfoUpdate={setTtsDebugInfo}
+            />
+          </div>
+        )}
+
+        <div style={{ width:'100%', padding:'10px 14px 18px', boxSizing:'border-box', background:'#0b0b0f' }}>
+          <Panel
+            running={running}
+            setRunning={setRunning}
+            onReset={() => { configRef.current = { ...DEFAULT_CONFIG }; setUiState({ ...DEFAULT_CONFIG }); }}
+            onDownload={() => { if (!canvasRef.current) return; const a = document.createElement('a'); a.href = canvasRef.current.toDataURL('image/png'); a.download = 'matrix_ai.png'; a.click(); }}
+            uiState={uiState}
+            updateConfig={updateConfig}
+            depthPreview={depthPreview}
+            depthInfo={depthInfo}
+            isTtsDepthActive={isTtsDepthActive}
+            collapsed={false}
+            setCollapsed={() => {}}
+            onDepthCanvasReady={handleDepthCanvasReady}
+            ttsEngine={ttsEngine}
+            ttsLanguage={ttsLanguage}
+            ttsApiKey={ttsApiKey}
+            onTtsEngineChange={setTtsEngine}
+            onTtsLanguageChange={setTtsLanguage}
+            onTtsApiKeyChange={setTtsApiKey}
+            ttsPreviewCanvasRef={ttsPreviewCanvasRef}
+            ttsDebugInfo={ttsDebugInfo}
+            mobileLayout={true}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position:'relative', width:'100%', height:'100vh', background:'#0b0b0f', overflow:'hidden' }}>
-      {/* Full-screen Matrix Canvas */}
       <canvas ref={canvasRef} style={{ display:'block', width:'100%', height:'100%' }} />
-      
-      {/* FPS Counter */}
       <div style={{ position:'absolute', top:10, left:12, color:'#a7f3d0', fontSize:12, background:'rgba(6,6,8,0.5)', border:'1px solid rgba(255,255,255,0.10)', padding:'6px 8px', borderRadius:8, zIndex:5 }}>
         FPS: {fps}
       </div>
-      
-      {/* TTS Compact Panel - Always shown at bottom when TTS mode active */}
-      {uiState.depthUrl === 'tts-live-face' && (
+      {isTtsMode && (
         <div style={{
           position: 'absolute',
           bottom: 0,
@@ -798,7 +880,6 @@ export default function MatrixAI() {
           />
         </div>
       )}
-      
       <Panel
         running={running}
         setRunning={setRunning}

@@ -23,7 +23,7 @@ const TTSCharacterPanel = ({
 }) => {
   // 手机和桌面配置分开
   const isMobile = /iPhone|iPad|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  const CANVAS_SIZE = isMobile ? 384 : 512; // 手机 384×384，桌面 512×512
+  const CANVAS_SIZE = isMobile ? 480 : 640; // 手机 480×480，桌面 640×640 (增大以提升Matrix depth map分辨率)
   
   // Use external props if provided, otherwise use internal state
   const [internalEngine, setInternalEngine] = useState('web-speech');
@@ -99,8 +99,8 @@ const TTSCharacterPanel = ({
           // 避免重复初始化，防止TTS中断
           if (!faceModelRef.current) {
             const sources = [
+              '/photo-bw-lipsync-creepy-512.png',
               '/photo-bw-lipsync-creepy-2.png',
-              '/photo-bw-lipsync-creepy.png',
               '/depth-map-lipsync.png',
               '/photo-rgb-lipsync.png'
             ];
@@ -472,47 +472,140 @@ const TTSCharacterPanel = ({
     );
   }
 
-  // For embedded mode (in main panel): show canvas and debug info only
-  // Settings are now in the main panel
+  // Embedded mode: used for the main panel/mobile TTS area
   return (
-    <div style={{ display: 'grid', gap: 12, width: '100%' }}>
-      <div style={{ display: 'grid', gap: 8 }}>
-        <label style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, color: '#90909b' }}>
-          面部动画预览
-        </label>
-        <canvas
-          ref={(el) => {
-            canvasRef.current = el;
-            if (el && !el.width) {
-              el.width = 512;
-              el.height = 512;
-            }
-          }}
+    <div style={{ display: 'grid', gap: 10, width: '100%', height: '100%', overflowY: 'auto', paddingRight: 2 }}>
+      <div style={{ display: 'grid', gap: 6 }}>
+        <label style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>TTS 文本</label>
+        <textarea
+          value={ttsText}
+          onChange={(e) => setTtsText(e.target.value)}
+          placeholder="输入要转语音的文本..."
+          maxLength={300}
           style={{
+            width: '100%',
+            minHeight: 86,
+            maxHeight: 140,
             borderRadius: 10,
             border: '1px solid rgba(255,255,255,0.12)',
-            background: '#000000',
-            display: 'block',
-            width: '100%',
-            height: 'auto',
-            maxHeight: '200px',
-            objectFit: 'contain',
-            imageRendering: 'auto'
+            background: 'rgba(24,24,27,0.75)',
+            color: '#e5e7eb',
+            fontSize: 13,
+            lineHeight: 1.5,
+            padding: '10px 12px',
+            fontFamily: 'system-ui, sans-serif',
+            resize: 'vertical'
           }}
         />
       </div>
 
-      <div style={{
-        padding: 10,
-        borderRadius: 8,
-        border: '1px solid rgba(255,255,255,0.12)',
-        background: 'rgba(24,24,27,0.6)',
-        fontSize: 11,
-        color: '#a0a0a8',
-        fontFamily: 'monospace'
-      }}>
-        <div>Viseme: <span style={{ color: '#3b82f6' }}>{debugInfo.viseme}</span></div>
-        <div>Mouth: <span style={{ color: '#10b981' }}>{debugInfo.mouthOpenness}</span></div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          onClick={isPlaying ? handleStop : handleSpeak}
+          disabled={isSynthesizing}
+          style={{
+            flex: '0 0 52px',
+            height: 52,
+            borderRadius: 10,
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: isPlaying ? '#ef4444' : isSynthesizing ? '#f97316' : '#3b82f6',
+            color: '#ffffff',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: isSynthesizing ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent',
+            transition: 'background 0.2s ease',
+            padding: 0,
+            opacity: isSynthesizing ? 0.8 : 1,
+            animation: isSynthesizing ? 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none'
+          }}
+        >
+          {isPlaying ? (
+            <Pause className="h-5 w-5" />
+          ) : isSynthesizing ? (
+            <div style={{
+              width: '20px',
+              height: '20px',
+              border: '2px solid rgba(255,255,255,0.3)',
+              borderTopColor: '#ffffff',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }} />
+          ) : (
+            <Play className="h-5 w-5" />
+          )}
+        </button>
+
+        <button
+          onClick={handleReset}
+          style={{
+            flex: '0 0 52px',
+            height: 52,
+            borderRadius: 10,
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: 'rgba(255,255,255,0.06)',
+            color: '#e5e7eb',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent'
+          }}
+        >
+          Reset
+        </button>
+
+        <div style={{
+          flex: 1,
+          padding: 10,
+          borderRadius: 10,
+          border: '1px solid rgba(255,255,255,0.12)',
+          background: 'rgba(24,24,27,0.6)',
+          fontSize: 11,
+          color: '#a0a0a8',
+          fontFamily: 'monospace',
+          minHeight: 52,
+          display: 'grid',
+          alignContent: 'center',
+          gap: 4
+        }}>
+          <div>Viseme: <span style={{ color: '#3b82f6' }}>{debugInfo.viseme}</span></div>
+          <div>Mouth: <span style={{ color: '#10b981' }}>{debugInfo.mouthOpenness}</span></div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gap: 6 }}>
+        <label style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, color: '#90909b' }}>
+          面部动画预览
+        </label>
+        <div style={{ position: 'relative', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', background: '#000000', overflow: 'hidden', width: '100%', height: '150px' }}>
+          <canvas
+            ref={(el) => {
+              canvasRef.current = el;
+              if (el && !el.width) {
+                el.width = CANVAS_SIZE;
+                el.height = CANVAS_SIZE;
+              }
+              if (el && onCanvasRefReady) {
+                onCanvasRefReady(el);
+              }
+            }}
+            style={{
+              display: 'block',
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              imageRendering: 'auto'
+            }}
+          />
+        </div>
       </div>
     </div>
   );
