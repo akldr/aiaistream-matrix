@@ -221,19 +221,20 @@ const TTSCharacterPanel = ({
   /**
    * 将 TTS 文本按日期写入服务器日志
    */
-  const logToServer = useCallback(async (text) => {
+  const logToServer = useCallback(async (text, socialMediaClick = null) => {
     const trimmed = text.trim().slice(0, 300);
-    if (!trimmed) return;
+    if (!trimmed && !socialMediaClick) return;
     try {
       const apiEndpoint = process.env.NEXT_PUBLIC_TTS_API_ENDPOINT || '/api/tts-log';
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          text: trimmed,
+          text: trimmed || `Social media click: ${socialMediaClick}`,
           engine: ttsEngine,
           language: ttsLanguage,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          socialMediaClick: socialMediaClick
         })
       });
       
@@ -251,8 +252,9 @@ const TTSCharacterPanel = ({
    */
   const handleSpeak = useCallback(async () => {
 
-    // iOS/Safari 音频解锁：播放一个极短静音音频
+    // iOS/Safari 音频解锁：必须在用户交互中立即执行
     try {
+      // 方法1: AudioContext解锁
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const buffer = ctx.createBuffer(1, 1, 22050);
       const source = ctx.createBufferSource();
@@ -260,7 +262,19 @@ const TTSCharacterPanel = ({
       source.connect(ctx.destination);
       source.start(0);
       setTimeout(() => ctx.close(), 200);
-    } catch (e) { /* ignore */ }
+      
+      // 方法2: Web Speech API预热（移动端关键）
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        // 立即触发一次speak来解锁，即使是空内容
+        const warmup = new SpeechSynthesisUtterance('');
+        warmup.volume = 0;
+        window.speechSynthesis.speak(warmup);
+        // 立即取消，但API已被激活
+        setTimeout(() => window.speechSynthesis.cancel(), 10);
+      }
+    } catch (e) { 
+      console.debug('Audio unlock attempt:', e); 
+    }
 
     if (!ttsText.trim()) {
       alert('请输入要合成的文本');

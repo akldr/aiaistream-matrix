@@ -21,7 +21,10 @@ export default {
     // Handle TTS log reading (GET /api/tts-log/{date})
     const logPathMatch = url.pathname.match(/^\/api\/tts-log\/(\d{4}-\d{2}-\d{2})$/);
     if (logPathMatch && request.method === 'GET') {
-      return handleGetLog(request, env, logPathMatch[1]);
+      // Check if browser request (Accept header contains text/html)
+      const acceptHeader = request.headers.get('Accept') || '';
+      const preferHtml = acceptHeader.includes('text/html');
+      return handleGetLog(request, env, logPathMatch[1], preferHtml);
     }
 
     // Handle TTS logging endpoint (POST /api/tts-log)
@@ -36,14 +39,29 @@ export default {
 /**
  * Handle reading TTS logs for a specific date
  */
-async function handleGetLog(request, env, dateStr) {
+async function handleGetLog(request, env, dateStr, preferHtml = false) {
   try {
     // Check if KV is available
     if (!env.TTS_LOGS) {
+      const errorData = {
+        error: 'KV storage not configured',
+      };
+      
+      if (preferHtml) {
+        return new Response(
+          generateHtmlView(dateStr, [], 'KV storage not configured'),
+          {
+            status: 503,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Access-Control-Allow-Origin': '*',
+            },
+          }
+        );
+      }
+      
       return new Response(
-        JSON.stringify({
-          error: 'KV storage not configured',
-        }),
+        JSON.stringify(errorData),
         {
           status: 503,
           headers: {
@@ -58,6 +76,19 @@ async function handleGetLog(request, env, dateStr) {
     const existing = await env.TTS_LOGS.get(kvKey);
 
     if (!existing) {
+      if (preferHtml) {
+        return new Response(
+          generateHtmlView(dateStr, [], 'No logs found for this date'),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Access-Control-Allow-Origin': '*',
+            },
+          }
+        );
+      }
+      
       return new Response(
         JSON.stringify({
           date: dateStr,
@@ -75,6 +106,20 @@ async function handleGetLog(request, env, dateStr) {
     }
 
     const logs = JSON.parse(existing);
+    
+    if (preferHtml) {
+      return new Response(
+        generateHtmlView(dateStr, logs),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      );
+    }
+    
     return new Response(
       JSON.stringify({
         date: dateStr,
@@ -91,6 +136,20 @@ async function handleGetLog(request, env, dateStr) {
     );
   } catch (error) {
     console.error('Error reading TTS log:', error);
+    
+    if (preferHtml) {
+      return new Response(
+        generateHtmlView(dateStr, [], `Error: ${error.message}`),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      );
+    }
+    
     return new Response(
       JSON.stringify({ error: 'Failed to read log', details: error.message }),
       {
@@ -110,7 +169,7 @@ async function handleGetLog(request, env, dateStr) {
 async function handleTTSLog(request, env) {
   try {
     const data = await request.json();
-    const { text, engine, language, timestamp } = data;
+    const { text, engine, language, timestamp, socialMediaClick } = data;
 
     if (!text) {
       return new Response(JSON.stringify({ error: 'Missing text field' }), {
@@ -146,12 +205,19 @@ async function handleTTSLog(request, env) {
       );
     }
 
+    // Get client IP address
+    const clientIP = request.headers.get('CF-Connecting-IP') || 
+                     request.headers.get('X-Forwarded-For')?.split(',')[0] || 
+                     'unknown';
+
     // Prepare log entry
     const logEntry = {
       timestamp: timestamp || new Date().toISOString(),
       engine: engine || 'unknown',
       language: language || 'unknown',
       text: text.substring(0, 300),
+      ip: clientIP,
+      socialMediaClick: socialMediaClick || null,
     };
 
     // Get today's date for KV key
@@ -210,4 +276,96 @@ async function handleTTSLog(request, env) {
       }
     );
   }
+}
+
+/**
+ * Generate HTML view for logs with proper UTF-8 encoding
+ */
+function generateHtmlView(dateStr, logs, errorMessage = null) {
+  const logsHtml = logs.map((log, index) => `
+    <div style="margin-bottom: 16px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; border-left: 3px solid #3b82f6;">
+      <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">
+        <span class="timestamp" data-utc="${log.timestamp}"></span> | ${log.engine} | ${log.language}
+        ${log.ip ? ` | IP: ${log.ip}` : ''}
+        ${log.socialMediaClick ? ` | 🔗 ${escapeHtml(log.socialMediaClick)}` : ''}
+      </div>
+      <div style="font-size: 14px; color: #e5e7eb; line-height: 1.5;">
+        ${escapeHtml(log.text)}
+      </div>
+    </div>
+  `).join('');
+  
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TTS Logs - ${dateStr}</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      background: #0c0c10;
+      color: #e5e7eb;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      color: #f3f4f6;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #9ca3af;
+      margin-bottom: 24px;
+    }
+    .error {
+      padding: 16px;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid #ef4444;
+      border-radius: 8px;
+      color: #fca5a5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>TTS Logs - ${dateStr}</h1>
+    <div class="subtitle">Total entries: ${logs.length}</div>
+    ${errorMessage ? `<div class="error">${escapeHtml(errorMessage)}</div>` : logsHtml}
+  </div>
+  <script>
+    // Convert UTC timestamps to local time
+    document.querySelectorAll('.timestamp').forEach(el => {
+      const utcTime = el.getAttribute('data-utc');
+      const date = new Date(utcTime);
+      el.textContent = date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+    });
+  </script>
+</body>
+</html>`;
+}
+
+/**
+ * Escape HTML special characters
+ */
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }

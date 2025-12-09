@@ -26,6 +26,7 @@ export function MobileLayout({
   ttsPreviewCanvasRef,
   ttsDebugInfo,
   TTSCharacterPanel,
+  logSocialMediaClick,
 }) {
   const [showPanel, setShowPanel] = useState(false);
 
@@ -130,6 +131,7 @@ export function MobileLayout({
           href="https://xhslink.com/m/3AUUKqviKxa"
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => logSocialMediaClick && logSocialMediaClick('Xiaohongshu')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -159,6 +161,7 @@ export function MobileLayout({
           href="https://github.com/akldr"
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => logSocialMediaClick && logSocialMediaClick('GitHub')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -278,14 +281,14 @@ export function MobileLayout({
               value={uiState.depthUrl}
               onChange={(e) => updateConfig("depthUrl", e.target.value)}
             >
-              <option value="/depth-map-video.mp4">默认（视频）</option>
-              <option value="/depth-default.png">默认（图片）</option>
+              <option value="tts-live-face">TTS 面部动画</option>
+              <option value="/depth-map-video.mp4">视频动画</option>
+              <option value="/depth-default.png">默认图片</option>
               <option value="/depth-map-01.png">图片 01</option>
               <option value="/depth-map-02.png">图片 02</option>
               <option value="/depth-map-03.png">图片 03</option>
               <option value="/depth-map-04.png">图片 04</option>
               <option value="/depth-map-05.png">图片 05</option>
-              <option value="tts-live-face">TTS 面部动画</option>
             </select>
           </div>
         </div>
