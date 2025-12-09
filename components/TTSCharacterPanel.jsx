@@ -45,6 +45,7 @@ const TTSCharacterPanel = ({
   
   const [ttsText, setTtsText] = useState(`Congratulations! Today is your day. You're off to Great Places! You're off and away! You have brains in your head. You have feet in your shoes. You can steer yourself any direction you choose. You're on your own. And you know what you know. And YOU are the guy who'll decide where to go.`);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [debugInfo, setDebugInfo] = useState({ viseme: '-', mouthOpenness: '-' });
 
   // Refs - shared across all render modes
@@ -128,6 +129,7 @@ const TTSCharacterPanel = ({
               }
             },
             onSpeechStart: () => {
+              setIsLoading(false);
               setIsPlaying(true);
               // Set initial mouth state to slightly open
               if (faceModelRef.current) {
@@ -276,9 +278,11 @@ const TTSCharacterPanel = ({
     }
 
     // Prevent starting new speech while already playing
-    if (isPlaying) {
+    if (isPlaying || isLoading) {
       return;
     }
+
+    setIsLoading(true);
 
     try {
       await logToServer(ttsText);
@@ -289,10 +293,12 @@ const TTSCharacterPanel = ({
 
       const result = await speechSynthesizerRef.current.synthesize(ttsText);
       // TTS completed
+      setIsLoading(false);
     } catch (error) {
       console.error('TTS synthesis failed:', error);
       alert(`语音合成失败: ${error.message}`);
       setIsPlaying(false);
+      setIsLoading(false);
       if (playbackIntervalRef.current) {
         clearInterval(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
@@ -312,6 +318,7 @@ const TTSCharacterPanel = ({
       faceModelRef.current.updateViseme('M', 0);
     }
     setIsPlaying(false);
+    setIsLoading(false);
     if (speechSynthesizerRef.current) {
       speechSynthesizerRef.current.stopPlayback();
     }
@@ -349,6 +356,12 @@ const TTSCharacterPanel = ({
   if (isCompact) {
     return (
       <>
+        <style>{`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', width: '100%', flexWrap: 'wrap' }}>
           <textarea
             value={ttsText}
@@ -370,7 +383,8 @@ const TTSCharacterPanel = ({
             }}
           />
           <button
-            onClick={isPlaying ? handleStop : handleSpeak}
+            onClick={isPlaying || isLoading ? handleStop : handleSpeak}
+            disabled={false}
             style={{
               minWidth: '50px',
               width: '50px',
@@ -378,7 +392,7 @@ const TTSCharacterPanel = ({
               minHeight: '50px',
               borderRadius: 8,
               border: '1px solid rgba(255,255,255,0.12)',
-              background: isPlaying ? '#ef4444' : '#3b82f6',
+              background: isLoading ? '#f59e0b' : (isPlaying ? '#ef4444' : '#3b82f6'),
               color: '#ffffff',
               fontSize: 14,
               fontWeight: 600,
@@ -390,10 +404,21 @@ const TTSCharacterPanel = ({
               touchAction: 'manipulation',
               WebkitTapHighlightColor: 'transparent',
               transition: 'background 0.2s ease',
-              padding: 0
+              padding: 0,
+              opacity: isLoading ? 0.9 : 1
             }}
+            title={isLoading ? '正在合成语音...' : (isPlaying ? '停止播放' : '播放语音')}
           >
-            {isPlaying ? (
+            {isLoading ? (
+              <div style={{
+                width: '20px',
+                height: '20px',
+                border: '2px solid rgba(255,255,255,0.3)',
+                borderTopColor: '#ffffff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+            ) : isPlaying ? (
               <Pause className="h-5 w-5" />
             ) : (
               <Play className="h-5 w-5" />

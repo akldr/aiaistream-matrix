@@ -800,6 +800,17 @@ export default function MatrixAI() {
     return () => { cancelled = true; };
   }, [uiState.depthUrl, resampleFromImage, resampleFromVideo]);
 
+  // 初始化Canvas大小
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    // 延迟确保DOM已渲染
+    const timer = setTimeout(() => {
+      fitCanvas(c, depthAspectRef.current || 1, isMobileRef.current);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isMobile]);
+
   useEffect(() => {
     const onResize = () => {
       const c = canvasRef.current;
