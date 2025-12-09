@@ -10,7 +10,7 @@ export default {
       return new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
         },
       });
@@ -18,7 +18,13 @@ export default {
 
     const url = new URL(request.url);
 
-    // Handle TTS logging endpoint
+    // Handle TTS log reading (GET /api/tts-log/{date})
+    const logPathMatch = url.pathname.match(/^\/api\/tts-log\/(\d{4}-\d{2}-\d{2})$/);
+    if (logPathMatch && request.method === 'GET') {
+      return handleGetLog(request, env, logPathMatch[1]);
+    }
+
+    // Handle TTS logging endpoint (POST /api/tts-log)
     if (url.pathname === '/api/tts-log' && request.method === 'POST') {
       return handleTTSLog(request, env);
     }
@@ -26,6 +32,77 @@ export default {
     return new Response('Not Found', { status: 404 });
   },
 };
+
+/**
+ * Handle reading TTS logs for a specific date
+ */
+async function handleGetLog(request, env, dateStr) {
+  try {
+    // Check if KV is available
+    if (!env.TTS_LOGS) {
+      return new Response(
+        JSON.stringify({
+          error: 'KV storage not configured',
+        }),
+        {
+          status: 503,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      );
+    }
+
+    const kvKey = `tts-log:${dateStr}`;
+    const existing = await env.TTS_LOGS.get(kvKey);
+
+    if (!existing) {
+      return new Response(
+        JSON.stringify({
+          date: dateStr,
+          logs: [],
+          message: 'No logs found for this date',
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      );
+    }
+
+    const logs = JSON.parse(existing);
+    return new Response(
+      JSON.stringify({
+        date: dateStr,
+        totalEntries: logs.length,
+        logs: logs,
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    );
+  } catch (error) {
+    console.error('Error reading TTS log:', error);
+    return new Response(
+      JSON.stringify({ error: 'Failed to read log', details: error.message }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    );
+  }
+}
 
 /**
  * Handle TTS log persistence to KV storage

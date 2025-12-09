@@ -6,6 +6,9 @@ pages_build_output_dir = "out"
 [env.production]
 name = "aiaistream-matrix"
 
+[env.production.vars]
+NEXT_PUBLIC_TTS_API_ENDPOINT = "https://aiaistream-tts-logger-production.hello-d8c.workers.dev/api/tts-log"
+
 [[env.production.kv_namespaces]]
 binding = "TTS_LOGS"
 id = "74f3173468294bc2aa1b8cd4f2b5d942"

@@ -224,7 +224,7 @@ const TTSCharacterPanel = ({
     if (!trimmed) return;
     try {
       const apiEndpoint = process.env.NEXT_PUBLIC_TTS_API_ENDPOINT || '/api/tts-log';
-      await fetch(apiEndpoint, {
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -234,6 +234,10 @@ const TTSCharacterPanel = ({
           timestamp: new Date().toISOString()
         })
       });
+      
+      if (!response.ok) {
+        console.warn('Log API returned error:', response.status);
+      }
     } catch (err) {
       // Log persistence failed - silently continue
       console.debug('TTS log save failed (non-critical):', err.message);
