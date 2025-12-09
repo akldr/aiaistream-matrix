@@ -227,12 +227,18 @@ const TTSCharacterPanel = ({
       await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: trimmed })
+        body: JSON.stringify({ 
+          text: trimmed,
+          engine: ttsEngine,
+          language: ttsLanguage,
+          timestamp: new Date().toISOString()
+        })
       });
     } catch (err) {
       // Log persistence failed - silently continue
+      console.debug('TTS log save failed (non-critical):', err.message);
     }
-  }, []);
+  }, [ttsEngine, ttsLanguage]);
 
   /**
    * 处理 TTS 合成和播放 - 实时动画
