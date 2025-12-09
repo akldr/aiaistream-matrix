@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Play, Pause, Sparkles, RotateCcw, Download, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp, Github } from "lucide-react";
 import TTSCharacterPanel from "./TTSCharacterPanel";
+import { MobileLayout } from "./MobileLayout";
 
 // 轻量 UI 组件（纯 JSX，无 TS 类型）
 const Button = (props) => {
@@ -322,17 +323,43 @@ function clamp(v, a = 0, b = 1) { return Math.max(a, Math.min(b, v)); }
 const DEPTH_LUT = new Float32Array(256);
 for (let i = 0; i < 256; i++) { const x = i / 255; const shifted = (x - 0.5) * 1.6; let y = clamp(0.5 + shifted, 0, 1); if (y >= 0.5) { y = 0.5 + Math.pow(y - 0.5, 0.7); } else { y = 0.5 - Math.pow(0.5 - y, 0.7); } DEPTH_LUT[i] = clamp(y, 0, 1); }
 function hash32(a) { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
-function fitCanvas(canvas, aspect = 1) { const ratio = Math.min(window.devicePixelRatio || 1, 2); const parent = canvas.parentElement; if (!parent) return; const bounds = parent.getBoundingClientRect(); const W = Math.max(1, Math.floor(bounds.width)); const H = Math.max(1, Math.floor(bounds.height));
-  // Maintain source aspect ratio (fallback to 1:1)
+function fitCanvas(canvas, aspect = 1, isMobile = false) { 
+  const ratio = Math.min(window.devicePixelRatio || 1, 2); 
+  const parent = canvas.parentElement; 
+  if (!parent) return; 
+  const bounds = parent.getBoundingClientRect(); 
+  const W = Math.max(1, Math.floor(bounds.width)); 
+  const H = Math.max(1, Math.floor(bounds.height));
+  
+  // 移动端：以宽度为主，按比例调整高度
+  // 桌面版：原有逻辑
   const safeAspect = Math.max(0.1, Math.min(10, aspect || 1));
-  let drawW = W;
-  let drawH = Math.round(W / safeAspect);
-  if (drawH > H) {
-    drawH = H;
-    drawW = Math.round(H * safeAspect);
+  let drawW, drawH;
+  
+  if (isMobile) {
+    // 移动端：canvas宽度 = 容器宽度，高度按比例计算
+    drawW = W;
+    drawH = Math.round(W / safeAspect);
+  } else {
+    // 桌面版：原有逻辑
+    drawW = W;
+    drawH = Math.round(W / safeAspect);
+    if (drawH > H) {
+      drawH = H;
+      drawW = Math.round(H * safeAspect);
+    }
   }
-  const targetW = Math.floor(drawW * ratio); const targetH = Math.floor(drawH * ratio);
-  if (canvas.width !== targetW || canvas.height !== targetH) { canvas.style.width = `${drawW}px`; canvas.style.height = `${drawH}px`; canvas.width = targetW; canvas.height = targetH; const ctx = canvas.getContext("2d"); if (ctx) ctx.setTransform(ratio, 0, 0, ratio, 0, 0); }
+  
+  const targetW = Math.floor(drawW * ratio); 
+  const targetH = Math.floor(drawH * ratio);
+  if (canvas.width !== targetW || canvas.height !== targetH) { 
+    canvas.style.width = `${drawW}px`; 
+    canvas.style.height = `${drawH}px`; 
+    canvas.width = targetW; 
+    canvas.height = targetH; 
+    const ctx = canvas.getContext("2d"); 
+    if (ctx) ctx.setTransform(ratio, 0, 0, ratio, 0, 0); 
+  }
 }
 
 function hueToRGB(h) {
@@ -419,7 +446,7 @@ export default function MatrixAI() {
       if (cw && ch) {
         depthAspectRef.current = cw / ch;
         const c = canvasRef.current;
-        if (c) fitCanvas(c, depthAspectRef.current);
+        if (c) fitCanvas(c, depthAspectRef.current, isMobileRef.current);
       }
       setDepthInfo(`${cw}×${ch} (TTS canvas)`);
       setDepthPreview(null);
@@ -448,6 +475,21 @@ export default function MatrixAI() {
   const lastVideoSampleRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
   const lastCanvasSampleRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
   const [fps, setFps] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+  const isMobileRef = useRef(false);
+
+  // 检测屏幕大小
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      isMobileRef.current = mobile;
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const ensureOffscreen = useCallback((w, h) => {
     let off = depthOffscreenRef.current;
@@ -762,7 +804,7 @@ export default function MatrixAI() {
     const onResize = () => {
       const c = canvasRef.current;
       if (!c) return;
-      fitCanvas(c, depthAspectRef.current || 1);
+      fitCanvas(c, depthAspectRef.current || 1, isMobileRef.current);
       if (isTtsDepthActiveRef.current) {
         resampleFromCanvas();
       } else if (depthVideoEl.current) {
@@ -812,6 +854,37 @@ export default function MatrixAI() {
   }, [running, draw, resampleFromCanvas, resampleFromVideo]);
 
   // No minimize state needed - always show compact version at bottom
+
+  // 根据屏幕大小选择布局
+  if (isMobile) {
+    return (
+      <MobileLayout
+        running={running}
+        setRunning={setRunning}
+        onReset={() => { configRef.current = { ...DEFAULT_CONFIG }; setUiState({ ...DEFAULT_CONFIG }); }}
+        onDownload={() => { if (!canvasRef.current) return; const a = document.createElement('a'); a.href = canvasRef.current.toDataURL('image/png'); a.download = 'matrix_ai.png'; a.click(); }}
+        fps={fps}
+        canvasRef={canvasRef}
+        uiState={uiState}
+        updateConfig={updateConfig}
+        depthPreview={depthPreview}
+        depthInfo={depthInfo}
+        isTtsDepthActive={isTtsDepthActive}
+        onDepthCanvasReady={handleDepthCanvasReady}
+        ttsEngine={ttsEngine}
+        ttsLanguage={ttsLanguage}
+        ttsApiKey={ttsApiKey}
+        onTtsEngineChange={setTtsEngine}
+        onTtsLanguageChange={setTtsLanguage}
+        onTtsApiKeyChange={setTtsApiKey}
+        ttsPreviewCanvasRef={ttsPreviewCanvasRef}
+        ttsDebugInfo={ttsDebugInfo}
+        TTSCharacterPanel={TTSCharacterPanel}
+      />
+    );
+  }
+
+  // 桌面版布局 - 保持原样
 
   return (
     <div style={{ position:'relative', width:'100%', height:'100vh', background:'#0b0b0f', display:'flex', alignItems:'center', justifyContent:'center' }}>
