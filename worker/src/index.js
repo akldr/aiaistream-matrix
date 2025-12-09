@@ -47,7 +47,7 @@ async function handleGetLog(request, env, dateStr) {
         {
           status: 503,
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json; charset=utf-8',
             'Access-Control-Allow-Origin': '*',
           },
         }
@@ -67,7 +67,7 @@ async function handleGetLog(request, env, dateStr) {
         {
           status: 200,
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json; charset=utf-8',
             'Access-Control-Allow-Origin': '*',
           },
         }
@@ -80,11 +80,11 @@ async function handleGetLog(request, env, dateStr) {
         date: dateStr,
         totalEntries: logs.length,
         logs: logs,
-      }),
+      }, null, 2),
       {
         status: 200,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'Access-Control-Allow-Origin': '*',
         },
       }
@@ -96,7 +96,7 @@ async function handleGetLog(request, env, dateStr) {
       {
         status: 500,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'Access-Control-Allow-Origin': '*',
         },
       }
@@ -116,7 +116,7 @@ async function handleTTSLog(request, env) {
       return new Response(JSON.stringify({ error: 'Missing text field' }), {
         status: 400,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'Access-Control-Allow-Origin': '*',
         },
       });
@@ -139,7 +139,7 @@ async function handleTTSLog(request, env) {
         {
           status: 200,
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json; charset=utf-8',
             'Access-Control-Allow-Origin': '*',
           },
         }
@@ -192,7 +192,7 @@ async function handleTTSLog(request, env) {
       {
         status: 200,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'Access-Control-Allow-Origin': '*',
         },
       }
@@ -204,7 +204,7 @@ async function handleTTSLog(request, env) {
       {
         status: 500,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'Access-Control-Allow-Origin': '*',
         },
       }
