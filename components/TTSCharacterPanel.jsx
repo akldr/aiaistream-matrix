@@ -45,6 +45,7 @@ const TTSCharacterPanel = ({
   
   const [ttsText, setTtsText] = useState(`Congratulations! Today is your day. You're off to Great Places! You're off and away! You have brains in your head. You have feet in your shoes. You can steer yourself any direction you choose. You're on your own. And you know what you know. And YOU are the guy who'll decide where to go.`);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isSynthesizing, setIsSynthesizing] = useState(false); // TTS 合成中
   const [debugInfo, setDebugInfo] = useState({ viseme: '-', mouthOpenness: '-' });
 
   // Refs - shared across all render modes
@@ -308,11 +309,12 @@ const TTSCharacterPanel = ({
     }
 
     // Prevent starting new speech while already playing
-    if (isPlaying) {
+    if (isPlaying || isSynthesizing) {
       return;
     }
 
     try {
+      setIsSynthesizing(true); // 显示合成中状态
       logToServer(ttsText);
       if (playbackIntervalRef.current) {
         clearInterval(playbackIntervalRef.current);
@@ -321,16 +323,18 @@ const TTSCharacterPanel = ({
 
       const result = await speechSynthesizerRef.current.synthesize(ttsText);
       // TTS completed
+      setIsSynthesizing(false);
     } catch (error) {
       console.error('TTS synthesis failed:', error);
       alert(`语音合成失败: ${error.message}`);
       setIsPlaying(false);
+      setIsSynthesizing(false);
       if (playbackIntervalRef.current) {
         clearInterval(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
       }
     }
-  }, [ttsText, logToServer]);
+  }, [ttsText, logToServer, isPlaying, isSynthesizing]);
 
   /**
    * 停止播放
@@ -403,6 +407,7 @@ const TTSCharacterPanel = ({
           />
           <button
             onClick={isPlaying ? handleStop : handleSpeak}
+            disabled={isSynthesizing}
             style={{
               minWidth: '50px',
               width: '50px',
@@ -410,11 +415,11 @@ const TTSCharacterPanel = ({
               minHeight: '50px',
               borderRadius: 8,
               border: '1px solid rgba(255,255,255,0.12)',
-              background: isPlaying ? '#ef4444' : '#3b82f6',
+              background: isPlaying ? '#ef4444' : isSynthesizing ? '#f97316' : '#3b82f6',
               color: '#ffffff',
               fontSize: 14,
               fontWeight: 600,
-              cursor: 'pointer',
+              cursor: isSynthesizing ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -422,11 +427,22 @@ const TTSCharacterPanel = ({
               touchAction: 'manipulation',
               WebkitTapHighlightColor: 'transparent',
               transition: 'background 0.2s ease',
-              padding: 0
+              padding: 0,
+              opacity: isSynthesizing ? 0.8 : 1,
+              animation: isSynthesizing ? 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none'
             }}
           >
             {isPlaying ? (
               <Pause className="h-5 w-5" />
+            ) : isSynthesizing ? (
+              <div style={{
+                width: '20px',
+                height: '20px',
+                border: '2px solid rgba(255,255,255,0.3)',
+                borderTopColor: '#ffffff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
             ) : (
               <Play className="h-5 w-5" />
             )}
