@@ -405,6 +405,7 @@ function extractGlyphTextFromGemini(data) {
 }
 
 const DEFAULT_CONFIG = { speed: 8, fontSize: 11, trail: 1.8, persistence: 0.45, depthInfluence: 0.6, glyphs: DEFAULT_GLYPHS, depthUrl: DEFAULT_DEPTH_URL, colorHue: Math.random() * 360 };
+const MOBILE_DEFAULT_CONFIG = { speed: 4.2, fontSize: 11, trail: 0.5, persistence: 0.5, depthInfluence: 3, glyphs: DEFAULT_GLYPHS, depthUrl: DEFAULT_DEPTH_URL, colorHue: Math.random() * 360 };
 
 export default function MatrixAI() {
   const canvasRef = useRef(null);
@@ -504,6 +505,12 @@ export default function MatrixAI() {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
       isMobileRef.current = mobile;
+      
+      // 移动版时使用移动默认配置
+      if (mobile) {
+        configRef.current = { ...MOBILE_DEFAULT_CONFIG };
+        setUiState({ ...MOBILE_DEFAULT_CONFIG });
+      }
     };
     
     checkMobile();
