@@ -6,22 +6,27 @@
 
 Set these in **Cloudflare Dashboard** (do NOT commit to git):
 
-#### 1. Worker Environment Variables
-Navigate to: Workers & Pages > aiaistream-tts-logger-production > Settings > Variables
+#### 1. Worker Secrets (Hidden)
+Set via command line (preferred) or Cloudflare Dashboard:
 
 ```bash
-# Log access token (generate a secure random token)
-LOG_ACCESS_TOKEN=<your-secure-random-token-here>
+# Generate a secure random token first
+TOKEN=$(openssl rand -base64 32)
+echo "Your token: $TOKEN"
+
+# Set the secret in Cloudflare Worker
+cd worker
+wrangler secret put LOG_ACCESS_TOKEN --env production
+# Paste the token when prompted
+
+# Or set on Dashboard:
+# Workers & Pages > aiaistream-tts-logger-production > Settings > Secrets
 ```
 
-Generate secure token:
-```bash
-# Using openssl
-openssl rand -base64 32
-
-# Using Node.js
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
+**Why secrets, not vars?**
+- Secrets are encrypted and hidden in logs
+- Variables are visible to anyone with access
+- Tokens must always be secrets
 
 #### 2. Pages Environment Variables
 Navigate to: Workers & Pages > aiaistream-matrix > Settings > Environment Variables

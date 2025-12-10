@@ -5,12 +5,17 @@ compatibility_date = "2024-12-01"
 [env.production]
 name = "aiaistream-tts-logger-production"
 
-# Environment variables - DO NOT commit actual values
-# Set these in Cloudflare Dashboard or use wrangler secret
+# Secrets - sensitive values set via: wrangler secret put LOG_ACCESS_TOKEN --env production
+[env.production.secrets]
+# LOG_ACCESS_TOKEN will be set via command line or Cloudflare Dashboard
+
+# Regular environment variables
 [env.production.vars]
-# LOG_ACCESS_TOKEN will be set via wrangler secret put LOG_ACCESS_TOKEN
+# Add any non-sensitive env vars here if needed
 
 [[env.production.kv_namespaces]]
 binding = "TTS_LOGS"
 # KV namespace ID - set via Cloudflare Dashboard
 id = "74f3173468294bc2aa1b8cd4f2b5d942"
+
+```
