@@ -11,7 +11,7 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         },
       });
     }
@@ -21,6 +21,23 @@ export default {
     // Handle TTS log reading (GET /api/tts-log/{date})
     const logPathMatch = url.pathname.match(/^\/api\/tts-log\/(\d{4}-\d{2}-\d{2})$/);
     if (logPathMatch && request.method === 'GET') {
+      // Verify access token for GET requests
+      const token = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+      const validToken = env.LOG_ACCESS_TOKEN || 'default-insecure-token';
+      
+      if (token !== validToken) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Invalid or missing access token' }),
+          {
+            status: 401,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Access-Control-Allow-Origin': '*',
+            },
+          }
+        );
+      }
+      
       // Check if browser request (Accept header contains text/html)
       const acceptHeader = request.headers.get('Accept') || '';
       const preferHtml = acceptHeader.includes('text/html');
