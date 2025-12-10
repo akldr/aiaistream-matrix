@@ -29,12 +29,14 @@ wrangler secret put LOG_ACCESS_TOKEN --env production
 - Tokens must always be secrets
 
 #### 2. Pages Environment Variables
-Navigate to: Workers & Pages > aiaistream-matrix > Settings > Environment Variables
+Already configured in `wrangler.toml`:
 
-```bash
-# TTS API endpoint (points to Worker)
-NEXT_PUBLIC_TTS_API_ENDPOINT=https://aiaistream-tts-logger-production.hello-d8c.workers.dev/api/tts-log
+```toml
+[env.production.vars]
+NEXT_PUBLIC_TTS_API_ENDPOINT = "https://aiaistream-tts-logger-production.hello-d8c.workers.dev/api/tts-log"
 ```
+
+These are deployed automatically via `npm run build` and `git push`.
 
 ## Accessing Logs
 

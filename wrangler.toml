@@ -6,13 +6,14 @@ pages_build_output_dir = "out"
 [env.production]
 name = "aiaistream-matrix"
 
-# Environment variables - actual values set in Cloudflare Dashboard
+# Environment variables
 [env.production.vars]
 # TTS API endpoint - points to separate Worker for logging
-# NEXT_PUBLIC_TTS_API_ENDPOINT is set in Cloudflare Pages settings
+NEXT_PUBLIC_TTS_API_ENDPOINT = "https://aiaistream-tts-logger-production.hello-d8c.workers.dev/api/tts-log"
 
 # KV namespace for TTS logs (if using Pages Functions)
 [[env.production.kv_namespaces]]
 binding = "TTS_LOGS"
-# ID should be set via Cloudflare Dashboard for security
+# KV namespace ID for TTS logging
 id = "74f3173468294bc2aa1b8cd4f2b5d942"
+
