@@ -128,10 +128,14 @@ export function MobileLayout({
         zIndex: 20,
       }}>
         <a
-          href="https://xhslink.com/m/3AUUKqviKxa"
-          target="_blank"
+          href="#"
           rel="noopener noreferrer"
-          onClick={() => logSocialMediaClick && logSocialMediaClick('Xiaohongshu')}
+          onClick={(e) => {
+            e.preventDefault();
+            logSocialMediaClick && logSocialMediaClick('Xiaohongshu').then(() => {
+              window.open('https://xhslink.com/m/3AUUKqviKxa', '_blank');
+            });
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -158,10 +162,14 @@ export function MobileLayout({
           </svg>
         </a>
         <a
-          href="https://github.com/akldr"
-          target="_blank"
+          href="#"
           rel="noopener noreferrer"
-          onClick={() => logSocialMediaClick && logSocialMediaClick('GitHub')}
+          onClick={(e) => {
+            e.preventDefault();
+            logSocialMediaClick && logSocialMediaClick('GitHub').then(() => {
+              window.open('https://github.com/akldr', '_blank');
+            });
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -232,7 +240,7 @@ export function MobileLayout({
       <div style={{
         flex: '1 1 auto',
         overflowY: 'auto',
-        padding: '16px 12px',
+        padding: '16px 12px 66px 12px',
         WebkitOverflowScrolling: 'touch',
       }}>
         <div style={{
