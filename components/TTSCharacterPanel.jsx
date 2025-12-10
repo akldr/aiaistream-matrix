@@ -225,6 +225,7 @@ const TTSCharacterPanel = ({
     const trimmed = text.trim().slice(0, 300);
     if (!trimmed && !socialMediaClick) return;
     try {
+      // 使用环境变量，如未设置则使用相对路径
       const apiEndpoint = process.env.NEXT_PUBLIC_TTS_API_ENDPOINT || '/api/tts-log';
       const response = await fetch(apiEndpoint, {
         method: 'POST',
