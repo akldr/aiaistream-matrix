@@ -309,6 +309,12 @@ const TTSCharacterPanel = ({
       // TTS completed
       setIsLoading(false);
     } catch (error) {
+      // 忽略用户点击暂停导致的"canceled"错误
+      if (error.message && error.message.toLowerCase().includes('canceled')) {
+        setIsPlaying(false);
+        setIsLoading(false);
+        return;
+      }
       console.error('TTS synthesis failed:', error);
       alert(`语音合成失败: ${error.message}`);
       setIsPlaying(false);
@@ -336,7 +342,14 @@ const TTSCharacterPanel = ({
     if (speechSynthesizerRef.current) {
       speechSynthesizerRef.current.stopPlayback();
     }
-    window.speechSynthesis.cancel(); // 停止TTS
+    // 安全停止TTS - 处理iOS等设备的问题
+    try {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    } catch (e) {
+      console.debug('Cancel speech error:', e.message);
+    }
   }, []);
 
   /**

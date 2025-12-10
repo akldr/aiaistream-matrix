@@ -256,16 +256,8 @@ export function MobileLayout({
             </Button>
           </div>
 
-          {/* 滑块控制 */}
-          <LabeledSlider label="Fall Speed" value={uiState.speed} onChange={(v) => updateConfig("speed", v)} min={0.5} max={8} step={0.1} />
-          <LabeledSlider label="Trail Length" value={uiState.trail} onChange={(v) => updateConfig("trail", v)} min={0} max={1.5} step={0.05} />
-          <LabeledSlider label="Trail Persist" value={uiState.persistence} onChange={(v) => updateConfig("persistence", v)} min={0} max={1} step={0.01} />
-          <LabeledSlider label="Font Size" value={uiState.fontSize} onChange={(v) => updateConfig("fontSize", v)} min={11} max={21} step={1} />
-          <LabeledSlider label="Color Hue" value={uiState.colorHue} onChange={(v) => updateConfig("colorHue", v)} min={0} max={360} step={1} />
-          <LabeledSlider label="Depth Strength" value={uiState.depthInfluence} onChange={(v) => updateConfig("depthInfluence", v)} min={0} max={1.5} step={0.05} />
-
-          {/* Depth Map 选择 */}
-          <div style={{ marginTop: '12px' }}>
+          {/* Depth Map 选择 - 放在最前面 */}
+          <div style={{ marginBottom: '12px' }}>
             <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 600, marginBottom: '6px', display: 'block' }}>Depth Map</label>
             <select
               style={{
@@ -291,6 +283,14 @@ export function MobileLayout({
               <option value="/depth-map-05.png">图片 05</option>
             </select>
           </div>
+
+          {/* 滑块控制 */}
+          <LabeledSlider label="Fall Speed" value={uiState.speed} onChange={(v) => updateConfig("speed", v)} min={0.5} max={8} step={0.1} />
+          <LabeledSlider label="Trail Length" value={uiState.trail} onChange={(v) => updateConfig("trail", v)} min={0} max={1.5} step={0.05} />
+          <LabeledSlider label="Trail Persist" value={uiState.persistence} onChange={(v) => updateConfig("persistence", v)} min={0} max={1} step={0.01} />
+          <LabeledSlider label="Font Size" value={uiState.fontSize} onChange={(v) => updateConfig("fontSize", v)} min={11} max={21} step={1} />
+          <LabeledSlider label="Color Hue" value={uiState.colorHue} onChange={(v) => updateConfig("colorHue", v)} min={0} max={360} step={1} />
+          <LabeledSlider label="Depth Strength" value={uiState.depthInfluence} onChange={(v) => updateConfig("depthInfluence", v)} min={0} max={1} step={0.05} />
         </div>
       </div>
     </div>
