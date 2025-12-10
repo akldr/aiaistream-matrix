@@ -432,6 +432,7 @@ export default function MatrixAI() {
   // Social media click logging
   const logSocialMediaClick = useCallback(async (platform) => {
     try {
+      // 使用环境变量，如未设置则使用相对路径
       const apiEndpoint = process.env.NEXT_PUBLIC_TTS_API_ENDPOINT || '/api/tts-log';
       await fetch(apiEndpoint, {
         method: 'POST',

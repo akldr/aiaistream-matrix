@@ -82,6 +82,21 @@ npm run build
 - POST endpoint (writing logs) remains public but rate-limited to 1000/day
 - GET endpoint (reading logs) requires authentication
 
+## IP Address Logging
+
+Client IP addresses are automatically captured from Cloudflare request headers:
+
+1. **CF-Connecting-IP** (Primary) - Cloudflare's real client IP
+2. **X-Forwarded-For** (Fallback) - Standard proxy header
+3. **CF-Client-IP** (Fallback) - Alternative Cloudflare header
+4. **X-Real-IP** (Fallback) - Nginx-style header
+5. **unknown** - If no header present
+
+**Important:** IP logging only works when:
+- Requests go through Cloudflare Workers (direct Worker URL)
+- Set `NEXT_PUBLIC_TTS_API_ENDPOINT` environment variable in Cloudflare Pages Dashboard
+- **Do NOT hardcode Worker URLs in code** - Always use environment variables for security
+
 ## KV Namespace
 
 The KV namespace ID in `wrangler.toml` is low-risk but included for completeness. 

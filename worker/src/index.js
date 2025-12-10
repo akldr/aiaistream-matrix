@@ -222,10 +222,12 @@ async function handleTTSLog(request, env) {
       );
     }
 
-    // Get client IP address
-    const clientIP = request.headers.get('CF-Connecting-IP') || 
-                     request.headers.get('X-Forwarded-For')?.split(',')[0] || 
-                     'unknown';
+    // Get client IP address from multiple possible headers
+    let clientIP = request.headers.get('CF-Connecting-IP') || 
+                   request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 
+                   request.headers.get('CF-Client-IP') ||
+                   request.headers.get('X-Real-IP') ||
+                   'unknown';
 
     // Prepare log entry
     const logEntry = {
