@@ -405,7 +405,7 @@ function extractGlyphTextFromGemini(data) {
 }
 
 const DEFAULT_CONFIG = { speed: 8, fontSize: 11, trail: 1.8, persistence: 0.45, depthInfluence: 0.6, glyphs: DEFAULT_GLYPHS, depthUrl: DEFAULT_DEPTH_URL, colorHue: Math.random() * 360 };
-const MOBILE_DEFAULT_CONFIG = { speed: 4.2, fontSize: 11, trail: 0.5, persistence: 0.5, depthInfluence: 3, glyphs: DEFAULT_GLYPHS, depthUrl: DEFAULT_DEPTH_URL, colorHue: Math.random() * 360 };
+const MOBILE_DEFAULT_CONFIG = { speed: 4.2, fontSize: 11, trail: 0.5, persistence: 0.5, depthInfluence: 0.3, glyphs: DEFAULT_GLYPHS, depthUrl: DEFAULT_DEPTH_URL, colorHue: Math.random() * 360 };
 
 export default function MatrixAI() {
   const canvasRef = useRef(null);
@@ -944,10 +944,14 @@ export default function MatrixAI() {
         pointerEvents: 'auto'
       }}>
         <a
-          href="https://xhslink.com/m/3AUUKqviKxa"
-          target="_blank"
+          href="#"
           rel="noopener noreferrer"
-          onClick={() => logSocialMediaClick('Xiaohongshu')}
+          onClick={(e) => {
+            e.preventDefault();
+            logSocialMediaClick('Xiaohongshu').then(() => {
+              window.open('https://xhslink.com/m/3AUUKqviKxa', '_blank');
+            });
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -979,10 +983,14 @@ export default function MatrixAI() {
           小红书
         </a>
         <a
-          href="https://github.com/akldr"
-          target="_blank"
+          href="#"
           rel="noopener noreferrer"
-          onClick={() => logSocialMediaClick('GitHub')}
+          onClick={(e) => {
+            e.preventDefault();
+            logSocialMediaClick('GitHub').then(() => {
+              window.open('https://github.com/akldr', '_blank');
+            });
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
