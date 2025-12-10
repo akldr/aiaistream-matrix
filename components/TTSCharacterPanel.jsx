@@ -394,6 +394,7 @@ const TTSCharacterPanel = ({
           <textarea
             value={ttsText}
             onChange={(e) => setTtsText(e.target.value)}
+            onFocus={(e) => e.target.select()}
             placeholder="输入要转语音的文本..."
             maxLength={300}
             style={{
