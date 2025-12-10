@@ -944,10 +944,14 @@ export default function MatrixAI() {
         pointerEvents: 'auto'
       }}>
         <a
-          href="https://xhslink.com/m/3AUUKqviKxa"
-          target="_blank"
+          href="#"
           rel="noopener noreferrer"
-          onClick={() => logSocialMediaClick('Xiaohongshu')}
+          onClick={(e) => {
+            e.preventDefault();
+            logSocialMediaClick('Xiaohongshu').then(() => {
+              window.open('https://xhslink.com/m/3AUUKqviKxa', '_blank');
+            });
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -979,10 +983,14 @@ export default function MatrixAI() {
           小红书
         </a>
         <a
-          href="https://github.com/akldr"
-          target="_blank"
+          href="#"
           rel="noopener noreferrer"
-          onClick={() => logSocialMediaClick('GitHub')}
+          onClick={(e) => {
+            e.preventDefault();
+            logSocialMediaClick('GitHub').then(() => {
+              window.open('https://github.com/akldr', '_blank');
+            });
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
